@@ -1,22 +1,22 @@
 :root {
   color-scheme: light dark;
-  --ink: #10231f;
-  --muted: #61766f;
-  --subtle: #82948e;
-  --paper: #f6faf7;
+  --ink: #17184a;
+  --muted: #5f6388;
+  --subtle: #7c83b2;
+  --paper: #f7f8ff;
   --surface: #ffffff;
-  --surface-soft: #edf8f2;
-  --surface-strong: #dff4ea;
-  --line: #d8e7df;
-  --accent: #13a77c;
-  --accent-strong: #087f61;
-  --accent-deep: #073f35;
-  --teal: #18c4a0;
-  --gold: #9a6a10;
+  --surface-soft: #eef0ff;
+  --surface-strong: #e1e5ff;
+  --line: #d9defa;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-deep: #1e3a8a;
+  --teal: #14b8a6;
+  --gold: #60a5fa;
   --danger: #b42318;
-  --success: #087f61;
-  --shadow: 0 24px 70px rgba(9, 63, 53, 0.12);
-  --soft-shadow: 0 14px 34px rgba(9, 63, 53, 0.08);
+  --success: #1d4ed8;
+  --shadow: 0 24px 70px rgba(49, 46, 129, 0.12);
+  --soft-shadow: 0 14px 34px rgba(49, 46, 129, 0.08);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 }
 
@@ -32,7 +32,7 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    linear-gradient(180deg, rgba(237, 248, 242, 0.75) 0, rgba(246, 250, 247, 0) 520px),
+    linear-gradient(180deg, rgba(238, 240, 255, 0.75) 0, rgba(247, 248, 255, 0) 520px),
     var(--paper);
   font-size: 16px;
   line-height: 1.6;
@@ -42,7 +42,7 @@ body {
 
 body.simple-page {
   background:
-    linear-gradient(180deg, rgba(237, 248, 242, 0.8) 0, rgba(246, 250, 247, 0) 360px),
+    linear-gradient(180deg, rgba(238, 240, 255, 0.8) 0, rgba(247, 248, 255, 0) 360px),
     var(--paper);
 }
 
@@ -84,7 +84,7 @@ a {
   top: 0;
   z-index: 20;
   border-bottom: 1px solid rgba(216, 231, 223, 0.86);
-  background: rgba(246, 250, 247, 0.92);
+  background: rgba(247, 248, 255, 0.92);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -747,7 +747,7 @@ details summary,
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 54px rgba(9, 63, 53, 0.08);
+  box-shadow: 0 18px 54px rgba(49, 46, 129, 0.08);
 }
 
 .checkout-plan.featured {
@@ -1242,17 +1242,17 @@ details p {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #edf7f2;
-    --muted: #aac2b9;
-    --subtle: #8aa399;
-    --paper: #0f1715;
-    --surface: #15211d;
-    --surface-soft: #142b25;
-    --surface-strong: #17392f;
-    --line: #2a443c;
-    --accent: #28c99b;
-    --accent-strong: #66e2bd;
-    --accent-deep: #dcfff2;
+    --ink: #f3f6ff;
+    --muted: #b9c4f4;
+    --subtle: #93a2df;
+    --paper: #0d1024;
+    --surface: #141936;
+    --surface-soft: #17204a;
+    --surface-strong: #1d2b63;
+    --line: #31407a;
+    --accent: #60a5fa;
+    --accent-strong: #93c5fd;
+    --accent-deep: #eaf1ff;
     --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
     --soft-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
   }

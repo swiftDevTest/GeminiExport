@@ -65,11 +65,15 @@
         "src/modules/export/builders/image.js",
         "src/modules/export/builders/pdf.js",
         "src/modules/export/builders/markdown.js",
+        "src/modules/export/builders/txt.js",
+        "src/modules/export/builders/json.js",
         "src/modules/export/ui-controller.js",
         "src/modules/export/platform-fetchers.js",
         "src/modules/export/message-adapter.js",
         "src/modules/export/platforms/shared.js",
         "src/modules/export/platforms/registry.js",
+        "src/modules/export/platforms/chatgpt/extractor.js",
+        "src/modules/export/platforms/claude/extractor.js",
         "src/modules/export/platforms/gemini/extractor.js",
         "src/modules/export/renderers/pdf/index.js",
         "src/modules/export/renderers/word/index.js",
@@ -90,6 +94,7 @@
         "https://gemini.google.com/*"
       ],
       "js": [
+        "src/product-config.js",
         "src/supabase-config.js",
         "src/supabase-api.js",
         "src/supabase-auth.js",
