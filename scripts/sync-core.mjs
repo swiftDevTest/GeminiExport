@@ -76,6 +76,41 @@ export function getRegisteredExportPlatforms() {
   writeFileSync(registryPath, registryCode, "utf8");
 }
 
+function applyPlatformFallbacks() {
+  const productNameFallback = 'globalThis.CHATVAULT_PRODUCT_CONFIG?.productName || "Gemini Export"';
+  [
+    "builders/docx.js",
+    "builders/image.js",
+    "builders/pdf.js",
+    "message-adapter.js",
+    "utils.js"
+  ].forEach((relativePath) => {
+    const filePath = join(TARGET_EXPORT_DIR, relativePath);
+    if (!existsSync(filePath)) return;
+    const source = readFileSync(filePath, "utf8")
+      .replace(/globalThis\.CHATVAULT_PRODUCT_CONFIG\?\.productName \|\| "[^"]+"/g, productNameFallback);
+    writeFileSync(filePath, source, "utf8");
+  });
+
+  const selectionPath = join(TARGET_EXPORT_DIR, "selection.js");
+  if (existsSync(selectionPath)) {
+    const source = readFileSync(selectionPath, "utf8")
+      .replace(/primary: vars\["--cv-primary"\] \|\| "#[0-9a-fA-F]{6}"/, 'primary: vars["--cv-primary"] || "#2563eb"')
+      .replace(/rgb: vars\["--cv-primary-rgb"\] \|\| "[^"]+"/, 'rgb: vars["--cv-primary-rgb"] || "37, 99, 235"')
+      .replace(/border: vars\["--accent-wash"\] \|\| "#[0-9a-fA-F]{6}"/, 'border: vars["--accent-wash"] || "#eaf1ff"');
+    writeFileSync(selectionPath, source, "utf8");
+  }
+
+  const tokensPath = join(TARGET_EXPORT_DIR, "themes", "tokens.js");
+  if (existsSync(tokensPath)) {
+    const source = readFileSync(tokensPath, "utf8").replace(
+      /var FALLBACK_BRAND_THEME = \{[\s\S]*?\n\};/,
+      "var FALLBACK_BRAND_THEME = {\n  primary: \"#2563eb\",\n  primaryDark: \"#1d4ed8\",\n  wash: \"#eaf1ff\",\n  soft: \"#f3f6ff\",\n  border: \"#bfccff\"\n};"
+    );
+    writeFileSync(tokensPath, source, "utf8");
+  }
+}
+
 function updateVersion() {
   const sharePkg = JSON.parse(readFileSync(join(SHARE_ROOT, "package.json"), "utf8"));
   const localPkgPath = join(REPO_ROOT, "package.json");
@@ -110,26 +145,16 @@ function main() {
     process.exit(1);
   }
 
-  // 1. 清理并重新拷贝核心目录（忽略 platforms）
+  // 1. 清理并重新拷贝核心目录
   rmSync(TARGET_EXPORT_DIR, { recursive: true, force: true });
   ensureDir(TARGET_EXPORT_DIR);
-  copyRecursive(SOURCE_EXPORT_DIR, TARGET_EXPORT_DIR, ["platforms"]);
+  copyRecursive(SOURCE_EXPORT_DIR, TARGET_EXPORT_DIR);
 
-  // 2. 拷贝 platforms/ 里的公共核心资源
-  const sourcePlatformsDir = join(SOURCE_EXPORT_DIR, "platforms");
-  const targetPlatformsDir = join(TARGET_EXPORT_DIR, "platforms");
-  ensureDir(targetPlatformsDir);
-  copyFileSync(join(sourcePlatformsDir, "shared.js"), join(targetPlatformsDir, "shared.js"));
-
-  // 3. 拷贝 平台 专属提取器
-  const sourcePlatformExt = join(sourcePlatformsDir, PLATFORM);
-  const targetPlatformExt = join(targetPlatformsDir, PLATFORM);
-  copyRecursive(sourcePlatformExt, targetPlatformExt);
-
-  // 4. 生成隔离平台的 registry.js
+  // 2. 恢复当前产品的品牌 fallback，并生成隔离平台的 registry.js
+  applyPlatformFallbacks();
   generateRegistry();
 
-  // 5. 更新本地 package.json 依赖版本与 supabase-config
+  // 3. 更新本地 package.json 依赖版本与 supabase-config
   updateVersion();
   updateSupabaseConfig();
 
