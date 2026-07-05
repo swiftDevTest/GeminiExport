@@ -1,7 +1,7 @@
 globalThis.CHATVAULT_SUPABASE_CONFIG = {
   url: "https://acgehhqcgreatcjcefub.supabase.co",
   publishableKey: "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q",
-  googleClientId: "666614439104-f4hlm7c2vsdk9kepnmbgsk1olqca0n9s.apps.googleusercontent.com"
+  googleClientId: "374182699502-jun74j44ngfb2ism80u0u39g90ogva6n.apps.googleusercontent.com"
 };
 
 globalThis.CHATVAULT_ENV = {
