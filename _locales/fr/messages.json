@@ -21,16 +21,16 @@
     "message": "Exporter en JSON"
   },
   "extensionName": {
-    "message": "Gemini Exporter - Gemini en PDF, Docs, MD et plus"
+    "message": "Gemini Exporter - Exporter des chats en lot vers PDF, Word, MD et plus"
   },
   "extensionShortName": {
     "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "Exportez localement vos chats Gemini en PDF, Docs, MD et plus."
+    "message": "Exportez vos chats Gemini localement en PDF, Docs, MD et plus. Prend en charge l'exportation individuelle et en lot."
   },
   "extensionActionTitle": {
-    "message": "Gemini Exporter - Gemini en PDF, Docs, MD et plus"
+    "message": "Gemini Exporter - Exporter des chats en lot vers PDF, Word, MD et plus"
   },
   "brand_ai_workspace": {
     "message": "Espace de travail IA"

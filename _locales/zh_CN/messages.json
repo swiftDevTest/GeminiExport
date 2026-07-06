@@ -21,16 +21,16 @@
     "message": "导出为 JSON"
   },
   "extensionName": {
-    "message": "Gemini 导出助手 - 浏览器本地导出 PDF、Word、MD 与 JSON"
+    "message": "Gemini Exporter - 批量导出聊天为 PDF、Word、Markdown 等"
   },
   "extensionShortName": {
-    "message": "Gemini 导出"
+    "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "在浏览器本地将 Gemini 对话导出为 PDF、Word、Markdown、纯文本与 JSON，保留美观排版。"
+    "message": "本地将 Gemini 对话导出为 PDF、Word、Markdown 与 JSON。支持单个和批量导出，保留美观且专业的排版。"
   },
   "extensionActionTitle": {
-    "message": "Gemini 导出助手 - 浏览器本地导出 PDF、Word、MD 与 JSON"
+    "message": "Gemini Exporter - 批量导出聊天为 PDF、Word、Markdown 等"
   },
   "brand_ai_workspace": {
     "message": "AI 工作区"

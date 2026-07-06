@@ -21,16 +21,16 @@
     "message": "Export to JSON"
   },
   "extensionName": {
-    "message": "Gemini Exporter - Local Chat PDF, Docs, Markdown & JSON"
+    "message": "Gemini Exporter - Bulk Export Chats to PDF, Word, Markdown and More"
   },
   "extensionShortName": {
     "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "Export Gemini chats locally to PDF, Docs, MD and More with polished layouts and browser processing."
+    "message": "Export Gemini chats locally to PDF, Docs, MD and More. Supports single and bulk export with polished layouts."
   },
   "extensionActionTitle": {
-    "message": "Gemini Exporter - Local Chat PDF, Docs, Markdown & JSON"
+    "message": "Gemini Exporter - Bulk Export Chats to PDF, Word, Markdown and More"
   },
   "brand_ai_workspace": {
     "message": "AI Workspace"
