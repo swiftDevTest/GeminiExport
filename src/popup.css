@@ -167,6 +167,9 @@ button:focus-visible,
   justify-content: center;
   width: 22px;
   height: 22px;
+  padding: 0;
+  appearance: none;
+  cursor: pointer;
   color: #8a4b00;
   border: 1px solid rgba(217, 119, 6, 0.24);
   border-radius: 999px;
@@ -178,6 +181,15 @@ button:focus-visible,
 
 .pro-crown-indicator.active {
   display: inline-flex;
+}
+
+.pro-crown-indicator:hover {
+  filter: brightness(1.04);
+}
+
+.pro-crown-indicator:focus-visible {
+  outline: 2px solid #b45309;
+  outline-offset: 2px;
 }
 
 .popup-header p {
@@ -1692,6 +1704,12 @@ input:checked + .slider::before {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.plan-badge-row > * {
+  flex: 0 0 auto;
 }
 
 .plan-tag {
@@ -1743,6 +1761,14 @@ input:checked + .slider::before {
   font-size: 15px;
   font-weight: 850;
   color: var(--accent-strong);
+}
+
+.plan-price-original {
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
 
 .plan-price-cadence {
