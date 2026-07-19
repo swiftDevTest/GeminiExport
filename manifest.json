@@ -25,7 +25,11 @@
     "storage",
     "downloads",
     "contextMenus",
-    "identity"
+    "identity",
+    "offscreen",
+    "alarms",
+    "notifications",
+    "clipboardWrite"
   ],
   "background": {
     "service_worker": "src/background.js"
@@ -43,13 +47,18 @@
     "https://lh6.google.com/*",
     "https://lh7.google.com/*",
     "https://lh8.google.com/*",
-    "https://lh9.google.com/*"
+    "https://lh9.google.com/*",
+    "https://api.notion.com/*"
   ],
   "web_accessible_resources": [
     {
       "resources": [
         "src/content.css",
-        "images/*.png"
+        "images/*.png",
+        "src/offscreen.html",
+        "src/obsidian-content.css",
+        "src/obsidian-settings.html",
+        "images/*"
       ],
       "matches": [
         "https://gemini.google.com/*"
