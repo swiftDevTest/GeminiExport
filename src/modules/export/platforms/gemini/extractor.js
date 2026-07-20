@@ -1,7 +1,7 @@
 import { isGeminiUINoiseText, isGeminiUINoiseContainer, isIgnoredRoleLabel, isIgnoredContentNode } from '../../utils.js';
 import { normalizeContent, chooseMoreCompleteBlocks, collectContentElements, getBlockSourceElement } from '../../parser-dom.js';
 import { captureExportHtmlStyle } from '../../html-style.js';
-import { compareElementsInDocument, pushDistinctDocumentElement } from '../shared.js';
+import { collapseNestedDocumentElements, compareElementsInDocument } from '../shared.js';
 
 export function parseGeminiMessages() {
   var messages = [];
@@ -44,6 +44,7 @@ export function parseGeminiMessages() {
     "[class*='model-response']"
   ];
   var turns = [];
+  var turnCandidates = new Set();
   var seenGeminiUserImageKeys = new Set();
   var geminiAttachmentFilenamePattern = /\.(?:png|jpe?g|gif|webp|bmp|svg|tiff?|avif|heic|heif)$/i;
   var geminiTurnOwnerSelector = "conversation-turn, .conversation-turn, [class*='conversation-turn'], [data-test-id='conversation-turn']";
@@ -122,13 +123,18 @@ export function parseGeminiMessages() {
     return removed ? kept.join("\n").replace(/\n{3,}/g, "\n\n").trim() : String(text || "");
   }
 
-  function filterGeminiAttachmentMetadataItems(items) {
+  function filterGeminiAttachmentMetadataItems(items, depth, budget) {
+    var currentDepth = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+    var remaining = budget || { value: 2000 };
+    if (currentDepth >= 32 || remaining.value <= 0) return [];
     return (items || []).map(function (item) {
+      if (remaining.value <= 0) return null;
+      remaining.value -= 1;
       var text = stripGeminiAttachmentMetadataText(item && item.text);
       return {
         ...item,
         text: text,
-        subItems: filterGeminiAttachmentMetadataItems(item && item.subItems)
+        subItems: filterGeminiAttachmentMetadataItems(item && item.subItems, currentDepth + 1, remaining)
       };
     }).filter(function (item) {
       return Boolean(item && (item.text || item.subItems && item.subItems.length));
@@ -233,11 +239,11 @@ export function parseGeminiMessages() {
   turnSelectors.forEach(function (selector) {
     Array.prototype.forEach.call(root.querySelectorAll(selector), function (el) {
       if (!isGeminiUINoiseContainer(el) && !isIgnoredContentNode(el)) {
-        pushDistinctDocumentElement(turns, el);
+        if (turnCandidates.size < 1000) turnCandidates.add(el);
       }
     });
   });
-  turns.sort(compareElementsInDocument);
+  turns = collapseNestedDocumentElements(Array.from(turnCandidates), 1000);
 
   var UNIQUE_USER_SELECTORS = [
     "user-query",
@@ -257,7 +263,7 @@ export function parseGeminiMessages() {
     "[data-message-author-role='assistant']"
   ];
 
-  var orphanUserEls = [];
+  var orphanUserCandidates = new Set();
   userSelectors.forEach(function (selector) {
     Array.prototype.forEach.call(root.querySelectorAll(selector), function (element) {
       if (!isInsideConversationTurn(element) && !isGeminiUINoiseContainer(element) && !isIgnoredContentNode(element)) {
@@ -269,13 +275,14 @@ export function parseGeminiMessages() {
           }
         });
         if (!containsResponse) {
-          pushDistinctDocumentElement(orphanUserEls, element);
+          if (orphanUserCandidates.size < 1000) orphanUserCandidates.add(element);
         }
       }
     });
   });
 
-  var orphanResponseEls = [];
+  var orphanUserEls = collapseNestedDocumentElements(Array.from(orphanUserCandidates), 1000);
+  var orphanResponseCandidates = new Set();
   responseSelectors.forEach(function (selector) {
     Array.prototype.forEach.call(root.querySelectorAll(selector), function (element) {
       if (!isInsideConversationTurn(element) && !isInsideGeminiUserElement(element) && !isGeminiUINoiseContainer(element) && !isIgnoredContentNode(element)) {
@@ -287,11 +294,13 @@ export function parseGeminiMessages() {
           }
         });
         if (!containsUser) {
-          pushDistinctDocumentElement(orphanResponseEls, element);
+          if (orphanResponseCandidates.size < 1000) orphanResponseCandidates.add(element);
         }
       }
     });
   });
+
+  var orphanResponseEls = collapseNestedDocumentElements(Array.from(orphanResponseCandidates), 1000);
 
   var candidates = [];
   turns.forEach(function (el) {
