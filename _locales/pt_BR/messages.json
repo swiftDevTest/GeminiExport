@@ -21,16 +21,16 @@
     "message": "Exportar para JSON"
   },
   "extensionName": {
-    "message": "Gemini Exporter - Exportar chats em lote para PDF, Word, Markdown e mais"
+    "message": "Gemini Exporter - Exportação local de chats para PDF e mais com privacidade primeiro"
   },
   "extensionShortName": {
     "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "Exporte chats do Gemini localmente para PDF, Docs, MD e mais. Suporta exportação individual e em lote com layouts elegantes."
+    "message": "Exporte chats do Gemini localmente para PDF, Word, Markdown, PNG e mais. Privacidade primeiro: toda análise e renderização acontecem no seu navegador. Nenhum conteúdo de chat é enviado."
   },
   "extensionActionTitle": {
-    "message": "Gemini Exporter - Exportar chats em lote para PDF, Word, Markdown e mais"
+    "message": "Gemini Exporter - Exportação local de chats para PDF e mais com privacidade primeiro"
   },
   "brand_ai_workspace": {
     "message": "Espaço de trabalho IA"

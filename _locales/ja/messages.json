@@ -21,16 +21,16 @@
     "message": "JSON にエクスポート"
   },
   "extensionName": {
-    "message": "Gemini Exporter - チャットを PDF、Word、Markdown などへ一括エクスポート"
+    "message": "Gemini Exporter - プライバシー優先のローカルチャット書き出し（PDF対応）"
   },
   "extensionShortName": {
     "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "Geminiの会話をPDF、Docs、MDなどへローカル書き出し。個別および一括エクスポートに対応し、美しいレイアウトで保存。"
+    "message": "Geminiの会話をPDF、Word、Markdown、画像などへローカル書き出し。プライバシー優先：すべての解析とレンダリングはブラウザ内で完結し、チャット本文は一切アップロードされません。"
   },
   "extensionActionTitle": {
-    "message": "Gemini Exporter - チャットを PDF、Word、Markdown などへ一括エクスポート"
+    "message": "Gemini Exporter - プライバシー優先のローカルチャット書き出し（PDF対応）"
   },
   "brand_ai_workspace": {
     "message": "AI ワークスペース"

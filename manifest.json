@@ -126,6 +126,7 @@
         "src/modules/usage-store.js",
         "src/modules/privacy-proof.js",
         "src/modules/export-health.js",
+        "src/modules/redaction.js",
         "src/modules/template-presets.js",
         "src/modules/export-receipt.js",
         "src/modules/developer-export.js",

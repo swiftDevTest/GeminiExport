@@ -1251,6 +1251,8 @@
           type: "CHATVAULT_POPUP_EXPORT",
           format: format,
           settings: currentSettings
+        }, {
+          closeImmediately: true
         });
       });
     });
@@ -1267,6 +1269,7 @@
           copyToClipboard: true,
           settings: getCurrentExportSettingsFromPopup()
         }, {
+          closeImmediately: true,
           onError: function () { copyJsonButton.disabled = false; }
         });
       });
@@ -1465,9 +1468,14 @@
         try {
           var api = globalThis.CHATVAULT_SUPABASE_API;
           if (api && session.access_token) {
-            await api.request("/functions/v1/sync-subscription-status", {
+            await api.request("/functions/v1/product-sync-subscription-status", {
               accessToken: session.access_token,
-              method: "POST"
+              method: "POST",
+              body: {
+                product_id: productConfig.productId,
+                product_slug: productConfig.productSlug,
+                product_name: productConfig.productName
+              }
             });
             showToast(t("popup_restore_submitted", "Restore request submitted. Close and reopen the popup to see the latest status."));
             if (isSupportedPage && activeTabId) {
@@ -1555,6 +1563,24 @@
   function sendMessageToActivePage(payload, options) {
     if (!requireSupportedPage()) return;
     options = options || {};
+    // closeImmediately：页面侧导出是长任务（可能持续数秒到数分钟），popup 在消息投递成功后
+    // 立即关闭，避免 popup 长时间挂起阻塞用户操作；页面侧导出在 content script 中继续完成。
+    if (options.closeImmediately) {
+      chrome.tabs.sendMessage(activeTabId, payload, function () {
+        if (chrome.runtime.lastError) {
+          if (typeof options.onError === "function") options.onError(chrome.runtime.lastError);
+          showToast(t("popup_refresh_page_retry", "Please refresh the current AI conversation page and try again."));
+          return;
+        }
+        if (typeof options.onSuccess === "function") {
+          try { options.onSuccess({}); } catch (e) {}
+        }
+      });
+      setTimeout(function () {
+        window.close();
+      }, 0);
+      return;
+    }
     chrome.tabs.sendMessage(activeTabId, payload, function (response) {
       if (chrome.runtime.lastError) {
         if (typeof options.onError === "function") options.onError(chrome.runtime.lastError);
@@ -1930,10 +1956,13 @@
     }
 
     try {
-      var result = await api.request("/functions/v1/verify-export-entitlement", {
+      var result = await api.request("/functions/v1/product-verify-export-entitlement", {
         accessToken: session.access_token,
         method: "POST",
         body: {
+          product_id: productConfig.productId,
+          product_slug: productConfig.productSlug,
+          product_name: productConfig.productName,
           requested_count: 1,
           consume: false
         }

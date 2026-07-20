@@ -5,3 +5,17 @@ supabase/.temp/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# 临时文件、备份、IDE 配置
+*.tmp
+*.bak
+*.swp
+*.orig
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+coverage/
+.nyc_output/
+*.lcov

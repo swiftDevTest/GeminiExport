@@ -21,16 +21,16 @@
     "message": "JSON으로 내보내기"
   },
   "extensionName": {
-    "message": "Gemini Exporter - 채팅을 PDF, Word, Markdown 등으로 일괄 내보내기"
+    "message": "Gemini Exporter - 프라이버시 우선 로컬 채팅 내보내기 (PDF 등)"
   },
   "extensionShortName": {
     "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "Gemini 대화를 PDF, Docs, MD 등으로 로컬 내보내기. 정교한 레이아웃으로 개별 및 일괄 내보내기를 지원합니다."
+    "message": "Gemini 대화를 PDF, Word, Markdown, 이미지 등으로 로컬 내보내기. 프라이버시 우선: 모든 파싱과 렌더링은 브라우저에서 완료되며, 채팅 콘텐츠는 어떤 서버로도 업로드되지 않습니다."
   },
   "extensionActionTitle": {
-    "message": "Gemini Exporter - 채팅을 PDF, Word, Markdown 등으로 일괄 내보내기"
+    "message": "Gemini Exporter - 프라이버시 우선 로컬 채팅 내보내기 (PDF 등)"
   },
   "brand_ai_workspace": {
     "message": "AI 워크스페이스"

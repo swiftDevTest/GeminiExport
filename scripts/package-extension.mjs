@@ -21,6 +21,18 @@ const excludedNames = new Set([
   ".DS_Store"
 ]);
 
+// 文件名后缀黑名单：临时文件、日志、备份、IDE 配置等不应打包进 Web Store zip
+const forbiddenSuffixes = [".tmp", ".log", ".bak", ".swp", ".orig"];
+const forbiddenNamePatterns = [/^test-(?:write|dd|tmp)/i];
+
+function isForbiddenFileName(name) {
+  if (excludedNames.has(name)) return true;
+  const lower = name.toLowerCase();
+  if (forbiddenSuffixes.some((suffix) => lower.endsWith(suffix))) return true;
+  if (forbiddenNamePatterns.some((pattern) => pattern.test(name))) return true;
+  return false;
+}
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -40,7 +52,7 @@ function ensureDir(path) {
 
 function copyRecursive(src, dest) {
   const name = src.split(/[\\/]/).pop();
-  if (excludedNames.has(name)) {
+  if (isForbiddenFileName(name)) {
     return;
   }
 
@@ -110,7 +122,10 @@ function main() {
 
   const files = listPackagedFiles(stagingRoot);
   const forbiddenPrefixes = ["site/", "supabase/", "tests/", "node_modules/", "dist/", ".git/"];
-  const forbidden = files.filter((file) => forbiddenPrefixes.some((prefix) => file.startsWith(prefix)));
+  const forbidden = files.filter((file) =>
+    forbiddenPrefixes.some((prefix) => file.startsWith(prefix))
+    || isForbiddenFileName(file.split("/").pop())
+  );
   if (forbidden.length > 0) {
     throw new Error(`Forbidden files were packaged:\n${forbidden.join("\n")}`);
   }

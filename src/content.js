@@ -9,9 +9,11 @@
 
   const auth = globalThis.CHATVAULT_SUPABASE_AUTH;
   const entitlements = globalThis.CHATVAULT_ENTITLEMENTS;
+  const productConfig = globalThis.CHATVAULT_PRODUCT_CONFIG;
   const usageStore = globalThis.CHATVAULT_USAGE_STORE;
   const privacyProof = globalThis.CHATVAULT_PRIVACY_PROOF;
   const exportHealth = globalThis.CHATVAULT_EXPORT_HEALTH;
+  const redaction = globalThis.CHATVAULT_REDACTION;
   const templatePresets = globalThis.CHATVAULT_TEMPLATE_PRESETS;
   const developerExport = globalThis.CHATVAULT_DEVELOPER_EXPORT;
   const shareCards = globalThis.CHATVAULT_SHARE_CARDS;
@@ -152,8 +154,14 @@
 
   function sanitizeExportSettings(settings) {
     const next = settings && typeof settings === "object" ? settings : {};
-    next.redaction_enabled = false;
+    // redaction_enabled 由导出流程按权限校验后决定是否应用，这里不强制定 false
+    // include_prompt_appendix 仍强制 false：sourcePrompt 脱敏链路在 template-presets 内未完整，
+    // 为安全兜底，禁止导出用户原始 Prompt 作为附录
     next.include_prompt_appendix = false;
+    // 类型校验：避免恶意 storage 注入非布尔值
+    if (typeof next.redaction_enabled !== "boolean") {
+      next.redaction_enabled = false;
+    }
     return next;
   }
 
@@ -574,15 +582,20 @@
       });
     }
     try {
-      const result = await globalThis.CHATVAULT_SUPABASE_API.request("/functions/v1/sync-subscription-status", {
+      const result = await globalThis.CHATVAULT_SUPABASE_API.request("/functions/v1/product-sync-subscription-status", {
         accessToken: session.access_token,
-        method: "POST"
+        method: "POST",
+        body: {
+          product_id: productConfig.productId,
+          product_slug: productConfig.productSlug,
+          product_name: productConfig.productName
+        }
       });
       const syncedProfile = normalizeProfileResponse(result);
       if (syncedProfile) return syncedProfile;
     } catch (err) {
       if (globalThis.CHATVAULT_DEBUG) {
-        console.debug("sync-subscription-status Edge Function failed, trying profiles fallback:", err);
+        console.debug("product-sync-subscription-status Edge Function failed, trying profiles fallback:", err);
       }
     }
     try {
@@ -664,6 +677,24 @@
     return entitlements.canUseExport(profile, dailyUsage, count);
   }
 
+  // 本地配额校验：服务端不可达或 schema 缓存未就绪时作为兜底，避免阻塞正常导出。
+  // 返回结构与 syncVerifiedExportEntitlement 对齐，调用方无需感知差异。
+  function getLocalExportAccessResult(count) {
+    const requestedCount = Math.max(1, Number(count) || 1);
+    const profile = currentUserProfile || entitlements.normalizeProfile({ plan: "free" });
+    const allowed = isProUser
+      || entitlements?.isPro?.(profile)
+      || entitlements.canUseExport(profile, dailyUsage, requestedCount);
+    return {
+      ok: true,
+      allowed: Boolean(allowed),
+      serverVerified: false,
+      profile: profile,
+      usage: dailyUsage,
+      remaining: entitlements.getRemainingFreeExports(profile, dailyUsage)
+    };
+  }
+
   async function verifySignedInExportAccess(count) {
     if (isProUser || !currentSession?.access_token) {
       return { ok: true, allowed: true, serverVerified: false };
@@ -687,12 +718,18 @@
         console.warn("Server entitlement verification schema is stale; using local quota fallback:", error);
         return { ok: true, allowed: true, serverVerified: false };
       }
-      return {
-        ok: false,
-        allowed: false,
-        serverVerified: false,
-        error: tx("content_entitlement_verify_failed", "Could not verify your export entitlement. Check your connection and try again.", "无法验证您的导出权益，请检查网络后重试。")
-      };
+      // 会话刷新失败时，若本地配额仍允许，则降级到本地校验，避免网络瞬断直接阻断导出
+      const localAccess = getLocalExportAccessResult(count);
+      if (!localAccess.allowed || isProUser) {
+        return {
+          ok: false,
+          allowed: false,
+          serverVerified: false,
+          error: tx("content_entitlement_verify_failed", "Could not verify your export entitlement. Check your connection and try again.", "无法验证您的导出权益，请检查网络后重试。")
+        };
+      }
+      console.warn("Server entitlement verification failed; using local quota fallback.", error);
+      return localAccess;
     }
 
     if (!session?.access_token) {
@@ -700,10 +737,13 @@
     }
 
     try {
-      const result = await globalThis.CHATVAULT_SUPABASE_API.request("/functions/v1/verify-export-entitlement", {
+      const result = await globalThis.CHATVAULT_SUPABASE_API.request("/functions/v1/product-verify-export-entitlement", {
         accessToken: session.access_token,
         method: "POST",
         body: {
+          product_id: productConfig.productId,
+          product_slug: productConfig.productSlug,
+          product_name: productConfig.productName,
           requested_count: count,
           consume
         }
@@ -734,12 +774,19 @@
         remaining: entitlements.getRemainingFreeExports(currentUserProfile, dailyUsage)
       };
     } catch (error) {
-      return {
-        ok: false,
-        allowed: false,
-        serverVerified: false,
-        error: tx("content_entitlement_verify_failed", "Could not verify your export entitlement. Check your connection and try again.", "无法验证您的导出权益，请检查网络后重试。")
-      };
+      // Edge Function 不可达（如网络瞬断、Supabase 区域故障）时，降级到本地配额，
+      // 让 Free 用户仍可基于本地日配额继续导出；Pro 用户因无法服务端验证则按本地缓存放行。
+      const localAccess = getLocalExportAccessResult(count);
+      if (!localAccess.allowed || isProUser) {
+        return {
+          ok: false,
+          allowed: false,
+          serverVerified: false,
+          error: tx("content_entitlement_verify_failed", "Could not verify your export entitlement. Check your connection and try again.", "无法验证您的导出权益，请检查网络后重试。")
+        };
+      }
+      console.warn("Server entitlement verification failed; using local quota fallback.", error);
+      return localAccess;
     }
   }
 
@@ -4984,6 +5031,26 @@
       return true;
     }
 
+    await loadState({ localOnly: true, skipVerify: true });
+    if (isCurrentExportCancelled()) return;
+
+    // 本地预检：基于本地缓存的 profile 和日配额快速拒绝，避免不必要的进度渲染和服务端往返
+    const localEntitlementPreflight = getLocalExportAccessResult(1);
+    if (!localEntitlementPreflight.allowed && !isProUser) {
+      hideExportProgress();
+      clearCurrentExportController();
+      showUpgradePrompt(FREE_QUOTA_EXHAUSTED_MESSAGE);
+      return;
+    }
+
+    const entitlementIssue = getEntitlementIssue(settingsForExport, presetForExport, currentUserProfile, formatForExport);
+    if (entitlementIssue) {
+      hideExportProgress();
+      clearCurrentExportController();
+      showUpgradePrompt(entitlementIssue);
+      return;
+    }
+
     if (isSingleExport) {
       renderExportProgress(formatForExport, {
         mode: "single",
@@ -4994,8 +5061,6 @@
       }, cancelExport);
     }
 
-    await loadState({ localOnly: true, skipVerify: true });
-    if (isCurrentExportCancelled()) return;
     const entitlementPreflight = await verifySignedInExportAccess(1);
     if (isCurrentExportCancelled()) return;
     if (!entitlementPreflight.ok) {
@@ -5023,24 +5088,6 @@
       clearCurrentExportController();
       showUpgradePrompt(FREE_QUOTA_EXHAUSTED_MESSAGE);
       return;
-    }
-
-    const entitlementIssue = getEntitlementIssue(settingsForExport, presetForExport, currentUserProfile, formatForExport);
-    if (entitlementIssue) {
-      hideExportProgress();
-      clearCurrentExportController();
-      showUpgradePrompt(entitlementIssue);
-      return;
-    }
-
-    if (isSingleExport) {
-      renderExportProgress(formatForExport, {
-        mode: "single",
-        title: getSingleExportProgressTitle(formatForExport),
-        message: tx("content_progress_initializing", "Exporting...", "正在导出..."),
-        progress: EXPORT_PROGRESS_INITIAL,
-        overallProgress: EXPORT_PROGRESS_INITIAL
-      }, cancelExport);
     }
 
     try {
@@ -5183,8 +5230,32 @@
         }
       });
 
+      // 2.7 本地敏感信息脱敏（按 Technical_Design 9.10 顺序：transform → health check → privacy proof → redaction → build）
+      // 安全要求：
+      // - 仅作用于 transform 之后的 cloned messages，不修改原始 messages
+      // - summary 不包含匹配到的原文
+      // - 全部检测在本地完成，不上传
+      // - redaction_enabled 由用户设置控制，但模块缺失或异常时降级为不脱敏（不阻断导出）
       let redactionSummary = { enabled: false, totalMatches: 0, byType: {} };
       let processedMessages = transformed;
+      if (redaction && typeof redaction.redactMessages === "function" && settingsForExport.redaction_enabled) {
+        try {
+          const redactionResult = redaction.redactMessages(transformed, {
+            redaction_enabled: true,
+            redactCodeBlocks: settingsForExport.redact_code_blocks !== false,
+            customRules: isProUser && Array.isArray(settingsForExport.custom_redaction_rules)
+              ? settingsForExport.custom_redaction_rules
+              : null
+          });
+          if (redactionResult && Array.isArray(redactionResult.messages)) {
+            processedMessages = redactionResult.messages;
+            redactionSummary = redactionResult.summary || redactionSummary;
+          }
+        } catch (redactionError) {
+          // 脱敏失败不应阻断导出，但需记录警告
+          console.warn("Redaction failed; exporting without redaction.", redactionError);
+        }
+      }
       exportStatsForProgress = getExportProgressStats(processedMessages);
       const selectedMessagesForBlob = mode === "selected" ? processedMessages : undefined;
 
@@ -5254,22 +5325,32 @@
         throw new Error(blobResult?.error || "Blob creation failed");
       }
 
-      if (!isProUser && currentSession?.access_token) {
+      // 7. 保存前先校验导出权益（Pro 也需服务端校验，避免本地缓存篡改绕过；consume:false 仅校验不消费额度）
+      if (currentSession?.access_token) {
         setExportProgress(tx("content_progress_checking_export_access", "Preparing export...", "正在准备导出..."), 90);
-        const entitlementVerification = await syncVerifiedExportEntitlement(1, { consume: true });
+        const entitlementVerification = await syncVerifiedExportEntitlement(1, { consume: false });
         if (!entitlementVerification.ok) {
-          throw new Error(entitlementVerification.error || tx("content_entitlement_verify_failed", "Could not verify your export entitlement. Check your connection and try again.", "无法验证您的导出权益，请检查网络后重试。"));
+          // 服务端校验失败时，若用户本地缓存显示 Pro，仍允许继续（网络问题不应阻塞已付费用户）
+          if (!isProUser) {
+            throw new Error(entitlementVerification.error || tx("content_entitlement_verify_failed", "Could not verify your export entitlement. Check your connection and try again.", "无法验证您的导出权益，请检查网络后重试。"));
+          }
+          console.warn("Pro entitlement verification failed; allowing export based on cached state.", entitlementVerification.error);
+        } else if (!entitlementVerification.allowed) {
+          // 服务端返回不允许：可能是 Free 额度耗尽，或 Pro 订阅已过期且本地缓存未更新
+          if (isProUser && entitlementVerification.profile) {
+            // 服务端已将 profile 同步为 Free，更新本地状态
+            isProUser = false;
+          }
+          if (!isProUser) {
+            hideExportProgress();
+            clearCurrentExportController();
+            showUpgradePrompt(FREE_QUOTA_EXHAUSTED_MESSAGE);
+            return;
+          }
         }
-        if (!entitlementVerification.allowed) {
-          hideExportProgress();
-          clearCurrentExportController();
-          showUpgradePrompt(FREE_QUOTA_EXHAUSTED_MESSAGE);
-          return;
-        }
-        serverConsumedExportUsage = Boolean(entitlementVerification.serverConsumed);
       }
 
-      // 7. 保存导出文件
+      // 8. 保存导出文件
       setExportProgress(tx("content_progress_downloading", "Preparing safe download...", "正在准备安全下载..."), 94);
 
       if (signal.aborted) {
@@ -5301,6 +5382,7 @@
         throw new Error("Export cancelled.");
       }
       if (saveResult?.cancelled) {
+        // 用户取消下载：不消费额度、不扣 Free 次数
         hideExportProgress();
         showPageToast(tx("content_export_save_cancelled", "Export cancelled.", "导出已取消。"));
         return;
@@ -5313,7 +5395,25 @@
         throw new Error(saveResult?.error || "Save dialog is not available.");
       }
 
-      // 8. 成功后生成凭证
+      // 9. 保存成功后，对 Free 用户消费服务端额度（避免取消下载仍扣计数）
+      if (!isProUser && currentSession?.access_token) {
+        try {
+          const consumeResult = await syncVerifiedExportEntitlement(1, { consume: true });
+          if (consumeResult.ok && consumeResult.allowed) {
+            serverConsumedExportUsage = Boolean(consumeResult.serverConsumed);
+          } else if (!consumeResult.ok) {
+            // 服务端消费失败（网络问题等）：降级到本地计数，避免阻断用户体验
+            console.warn("Server-side quota consume failed; falling back to local usage tracking.", consumeResult.error);
+          } else if (!consumeResult.allowed) {
+            // 服务端拒绝消费（额度已耗尽，可能是并发竞争）：不阻断已生成的导出，但记录警告
+            console.warn("Server refused to consume export quota after save; concurrent usage may have exhausted the daily limit.");
+          }
+        } catch (consumeError) {
+          console.warn("Export quota consume threw; export already saved.", consumeError);
+        }
+      }
+
+      // 10. 成功后生成凭证
       setExportProgress(tx("content_progress_receipt", "Generating export receipt...", "正在生成导出凭证..."), 98);
       try {
         const receipt = await globalThis.CHATVAULT_EXPORT_RECEIPT.generateReceipt(blobResult.blob, {
@@ -5330,7 +5430,7 @@
         console.warn("Receipt generation failed:", e);
       }
 
-      // 9. 扣除本地 Guest 次数
+      // 11. 扣除本地 Guest 次数（与服务端消费互斥：服务端已消费则不重复本地计数）
       if (!isProUser) {
         await recordSuccessfulExportUsage(1, { serverConsumed: serverConsumedExportUsage });
         updateUIState();
@@ -5549,6 +5649,11 @@
 
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!message) return;
+      // 安全校验：仅接受来自本扩展的消息，拒绝其他扩展或页面注入的消息
+      // 防止恶意扩展触发导出、登录、同步等敏感操作
+      if (!sender || sender.id !== chrome.runtime.id) {
+        return;
+      }
 
       // 1. 处理右键菜单或通知触发的直接导出
       if (message.type === "CHATVAULT_TRIGGER_EXPORT") {
