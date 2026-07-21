@@ -785,6 +785,10 @@
       if (!message || message.type !== "CHATVAULT_ENTITLEMENT_STATE_UPDATED") {
         return;
       }
+      // 安全校验：仅接受来自本扩展的消息，拒绝其他扩展或页面注入的消息（与 content.js H3 修复对齐）
+      if (!sender || sender.id !== chrome.runtime.id) {
+        return;
+      }
       if (activeTabId && sender?.tab?.id && sender.tab.id !== activeTabId) {
         return;
       }
@@ -3025,7 +3029,11 @@
   }
 
   // 监听持久化 Background 任务状态。
-  chrome.runtime.onMessage.addListener(function (message) {
+  chrome.runtime.onMessage.addListener(function (message, sender) {
+    // 安全校验：仅接受来自本扩展的消息，拒绝其他扩展或页面注入的消息（与 content.js H3 修复对齐）
+    if (!sender || sender.id !== chrome.runtime.id) {
+      return;
+    }
     if (message && message.type === "CHATVAULT_NOTION_JOB_STATUS" && message.job) {
       renderNotionJob(message.job);
     }

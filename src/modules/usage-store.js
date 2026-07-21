@@ -15,11 +15,9 @@
   }
 
   function getTodayString() {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    // 使用 UTC 日期，与服务端 export_usage_daily.usage_date (current_date) 对齐
+    // 避免本地时区在 UTC 边界附近与服务端日期不一致导致配额重置错乱
+    return new Date().toISOString().slice(0, 10);
   }
 
   function getDailyUsage() {

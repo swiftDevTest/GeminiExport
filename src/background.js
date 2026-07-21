@@ -2,17 +2,19 @@
 try {
   importScripts("notion-background.js");
 } catch (e) {
-  console.warn("[Background] Failed to import notion-background.js:", e);
+  console.error("[Background] Failed to import notion-background.js:", e);
 }
 try {
   importScripts("obsidian-background.js");
 } catch (e) {
-  console.warn("[Background] Failed to import obsidian-background.js:", e);
+  console.error("[Background] Failed to import obsidian-background.js:", e);
 }
 
 try {
   importScripts("product-config.js");
-} catch (error) {}
+} catch (error) {
+  console.error("[Background] Failed to import product-config.js:", error);
+}
 
 (function initChatVaultBackground() {
   "use strict";
@@ -131,12 +133,8 @@ try {
   }
 
   function getTodayString() {
-    const date = new Date();
-    return [
-      date.getFullYear(),
-      String(date.getMonth() + 1).padStart(2, "0"),
-      String(date.getDate()).padStart(2, "0")
-    ].join("-");
+    // 使用 UTC 日期，与服务端 export_usage_daily.usage_date (current_date) 对齐
+    return new Date().toISOString().slice(0, 10);
   }
 
   function normalizeProfileForCache(profile, session) {

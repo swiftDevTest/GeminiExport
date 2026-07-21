@@ -8,7 +8,9 @@
   const productSlug = productConfig.productSlug || "gemini-export";
   const productName = productConfig.productName || "Gemini Export";
   const checkoutIntentStorageKey = storageKey("pending_checkout_intent.v1");
-  const checkoutIntentMaxAgeMs = 5 * 60 * 1000;
+  // 结账意图有效期：延长到 30 分钟，覆盖用户登录、填信用卡、3DS 验证等完整流程
+  // 之前 5 分钟可能导致用户还在结账时 intent 已失效，webhook 回调无法关联本地 intent
+  const checkoutIntentMaxAgeMs = 30 * 60 * 1000;
   const billingPriceIds = productConfig.billingPriceIds || {};
   const getConfiguredPriceId = (key, fallback) => (
     Object.prototype.hasOwnProperty.call(billingPriceIds, key) ? billingPriceIds[key] : fallback
@@ -211,6 +213,16 @@
     });
 
     if (!result || !result.checkoutUrl) {
+      throw new Error(t("billing_err_unavailable", "Checkout is temporarily unavailable. Please try again later."));
+    }
+
+    // 校验 checkoutUrl 协议：仅允许 https，防止服务端被篡改返回 javascript:http: 等不安全协议
+    try {
+      const parsedCheckoutUrl = new URL(result.checkoutUrl);
+      if (parsedCheckoutUrl.protocol !== "https:") {
+        throw new Error("Invalid checkout URL protocol");
+      }
+    } catch (_protocolError) {
       throw new Error(t("billing_err_unavailable", "Checkout is temporarily unavailable. Please try again later."));
     }
 

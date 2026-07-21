@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, rmSync, readdirSync, statSync, readFileSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,8 +20,11 @@ const BRAND_SOFT = "#f3f6ff";
 const BRAND_BORDER = "#bfccff";
 
 // 路径定义：源目录为 ChatVault Exporter（主产品，保持最新功能代码）
+// 支持通过环境变量 CHATVAULT_SOURCE_ROOT 覆盖默认路径，方便不同克隆位置的开发者
 const REPO_ROOT = join(__dirname, "..");
-const SOURCE_ROOT = join(REPO_ROOT, "..", "ChatVault Exporter");
+const SOURCE_ROOT = process.env.CHATVAULT_SOURCE_ROOT
+  ? resolve(process.env.CHATVAULT_SOURCE_ROOT)
+  : join(REPO_ROOT, "..", "ChatVault Exporter");
 const SOURCE_EXPORT_DIR = join(SOURCE_ROOT, "src", "modules", "export");
 const TARGET_EXPORT_DIR = join(REPO_ROOT, "src", "modules", "export");
 

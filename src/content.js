@@ -5012,6 +5012,8 @@
       : { ...exportSettings };
     const controller = new AbortController();
     abortController = controller;
+    // 单次导出开始时清理批量控制器引用，避免 cancelExport 误 abort 上一次批量控制器
+    batchExportAbortController = null;
     const signal = controller.signal;
     const isSingleExport = !globalThis.CHATVAULT_IS_BATCH_EXPORT;
     let serverConsumedExportUsage = false;
@@ -5317,7 +5319,7 @@
         }
       });
 
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         throw new Error("Export cancelled.");
       }
 

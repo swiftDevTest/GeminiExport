@@ -26,11 +26,15 @@ function isAllowedChromeExtensionOrigin(origin: string) {
   try {
     const url = new URL(origin);
     if (url.protocol === "chrome-extension:") {
-      return /^[a-p]{32}$/.test(url.hostname) && (url.pathname === "" || url.pathname === "/");
+      // 仅放行白名单中的扩展 ID，拒绝任意 chrome-extension:// 来源
+      // 之前用 /^[a-p]{32}$/ 通配会放行任何已安装的 Chrome 扩展，扩大了攻击面
+      const allowedOrigins = getConfiguredAllowedOrigins();
+      return allowedOrigins.includes(origin);
     }
-    // Support Firefox & Safari extensions: moz-extension://[uuid] or safari-web-extension://[uuid]
-    if (/^(moz|safari-web)-extension:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i.test(origin)) {
-      return true;
+    // Firefox & Safari 扩展：仅放行白名单中的具体来源，不再通配 UUID 格式
+    if (/^(moz|safari-web)-extension:\/\//i.test(origin)) {
+      const allowedOrigins = getConfiguredAllowedOrigins();
+      return allowedOrigins.includes(origin);
     }
   } catch (_error) {
     return false;

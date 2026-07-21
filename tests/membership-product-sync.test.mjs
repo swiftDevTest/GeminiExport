@@ -283,7 +283,6 @@ test("checkout allows valid browser extension origins", () => {
   const httpSource = readText("../supabase/functions/_shared/http.ts");
   assert.match(httpSource, /function isAllowedChromeExtensionOrigin\(origin: string\)/);
   assert.match(httpSource, /url\.protocol === "chrome-extension:"/);
-  assert.match(httpSource, /\^\[a-p\]\{32\}\$/);
   assert.match(httpSource, /isAllowedChromeExtensionOrigin\(origin\)/);
 
   const runtimeSource = httpSource
@@ -303,12 +302,18 @@ test("checkout allows valid browser extension origins", () => {
     }
   });
 
-  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")), true);
-  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/")), true);
+  // 白名单中的本扩展来源应通过
+  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("chrome-extension://cjkfchfnmbhcpmbhobdanongbjkcbagj")), true);
+  // 白名单站点来源应通过
+  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("https://gemini.google.com")), true);
+  // 未在白名单中的扩展来源应拒绝（之前通配 /^[a-p]{32}$/ 会错误放行）
+  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")), false);
+  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/")), false);
   assert.equal(isAllowedBrowserOrigin(requestWithOrigin("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/path")), false);
   assert.equal(isAllowedBrowserOrigin(requestWithOrigin("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaq")), false);
-  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("moz-extension://123e4567-e89b-12d3-a456-426614174000")), true);
-  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("safari-web-extension://123e4567-e89b-12d3-a456-426614174000")), true);
+  // 未在白名单中的 Firefox/Safari 扩展来源应拒绝（之前通配 UUID 格式会错误放行）
+  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("moz-extension://123e4567-e89b-12d3-a456-426614174000")), false);
+  assert.equal(isAllowedBrowserOrigin(requestWithOrigin("safari-web-extension://123e4567-e89b-12d3-a456-426614174000")), false);
   assert.equal(isAllowedBrowserOrigin(requestWithOrigin("https://evil.example")), false);
 });
 

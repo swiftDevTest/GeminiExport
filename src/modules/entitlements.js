@@ -60,11 +60,8 @@
   }
 
   function getTodayString() {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    // 使用 UTC 日期，与服务端 export_usage_daily.usage_date (current_date) 对齐
+    return new Date().toISOString().slice(0, 10);
   }
 
   function getUsageCount(usage = {}) {
@@ -380,6 +377,13 @@
 
     const cachedAt = Number(value.cachedAt || 0);
     if (!Number.isFinite(cachedAt) || cachedAt <= 0) {
+      return null;
+    }
+
+    // 缓存 TTL 24 小时：Pro 用户取消订阅后，本地缓存的 isProUser:true 不会无限期生效
+    // 服务端 verify-export-entitlement 会兜底拒绝，此处 TTL 作为防御纵深
+    const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    if (Date.now() - cachedAt > CACHE_TTL_MS) {
       return null;
     }
 

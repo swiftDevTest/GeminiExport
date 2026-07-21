@@ -86,9 +86,9 @@ function listPackagedFiles(dir, root = dir) {
 function prepareReleaseManifest() {
   const manifestPath = join(stagingRoot, "manifest.json");
   const manifest = readJson(manifestPath);
-  delete manifest.key;
+  // Chrome Web Store 包不允许包含 key 字段（会与商店分配的 key 冲突）
   if (Object.hasOwn(manifest, "key")) {
-    throw new Error("Chrome Web Store package manifest must not include key");
+    delete manifest.key;
   }
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 }
