@@ -11,8 +11,9 @@ const DEFAULT_ALLOWED_BROWSER_ORIGINS = [
   "https://chatgpt.com",
   "https://chat.openai.com",
   "https://claude.ai",
-  "https://gemini.google.com",
-  "chrome-extension://cjkfchfnmbhcpmbhobdanongbjkcbagj"
+  "https://gemini.google.com"
+  // 注意：chrome-extension / moz-extension / safari-web-extension 协议 origin 不在此处放行，
+  // 统一由 isAllowedChromeExtensionOrigin 处理，避免本表与扩展 ID 白名单行为不一致。
 ];
 
 function getConfiguredAllowedOrigins() {
@@ -26,15 +27,28 @@ function isAllowedChromeExtensionOrigin(origin: string) {
   try {
     const url = new URL(origin);
     if (url.protocol === "chrome-extension:") {
-      // 仅放行白名单中的扩展 ID，拒绝任意 chrome-extension:// 来源
-      // 之前用 /^[a-p]{32}$/ 通配会放行任何已安装的 Chrome 扩展，扩大了攻击面
-      const allowedOrigins = getConfiguredAllowedOrigins();
-      return allowedOrigins.includes(origin);
+      // 仅允许在配置白名单中的扩展 ID，不再接受任意 32 字符 ID。
+      // 通过 CHATVAULT_ALLOWED_EXTENSION_IDS 环境变量配置（逗号分隔）。
+      const allowed = (Deno.env.get("CHATVAULT_ALLOWED_EXTENSION_IDS") || "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (allowed.length === 0) {
+        // 未配置白名单时仅允许本仓库已知的扩展 ID（chatgpt-export）
+        return url.hostname === "cjkfchfnmbhcpmbhobdanongbjkcbagj" && (url.pathname === "" || url.pathname === "/");
+      }
+      return allowed.includes(url.hostname) && (url.pathname === "" || url.pathname === "/");
     }
-    // Firefox & Safari 扩展：仅放行白名单中的具体来源，不再通配 UUID 格式
+    // Firefox & Safari 扩展：同样要求显式配置白名单（环境变量值为 UUID）
     if (/^(moz|safari-web)-extension:\/\//i.test(origin)) {
-      const allowedOrigins = getConfiguredAllowedOrigins();
-      return allowedOrigins.includes(origin);
+      const allowed = (Deno.env.get("CHATVAULT_ALLOWED_EXTENSION_IDS") || "")
+        .split(",")
+        .map((id) => id.trim().toLowerCase())
+        .filter(Boolean);
+      if (allowed.length === 0) {
+        return false;
+      }
+      return allowed.includes(origin.toLowerCase().replace(/\/$/, ""));
     }
   } catch (_error) {
     return false;
