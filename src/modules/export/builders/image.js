@@ -450,13 +450,13 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
     if (block.headers && block.headers.length) rows.push({ cells: block.headers, header: true });
     (block.rows || []).forEach(function (row) { rows.push({ cells: row, header: false }); });
     if (!rows.length) return null;
-    var columnCount = rows.map(function (row) { return row.cells.length; }).reduce(function(a, b) { return Math.max(a, b); }, 0);
+    var columnCount = Math.max.apply(null, rows.map(function (row) { return row.cells.length; }));
     var cellWidth = width / Math.max(1, columnCount);
     var rowLayouts = rows.map(function (row) {
       var cellLines = row.cells.map(function (cell) {
         return wrapText(measureCtx, cleanInlineMarkdownText(cell), cellWidth - 18, (row.header ? "800 " : "") + "14px " + theme.font.body);
       });
-      var rowHeight = Math.max(38, cellLines.map(function (lines) { return Math.max(1, lines.length); }).reduce(function(a, b) { return Math.max(a, b); }, 0) * 20 + 20);
+      var rowHeight = Math.max(38, Math.max.apply(null, cellLines.map(function (lines) { return Math.max(1, lines.length); })) * 20 + 20);
       return { header: row.header, cellLines: cellLines, rowHeight: rowHeight };
     });
     return {
@@ -557,7 +557,9 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
       
       if (chunk.code) {
         ctx.save();
-        var isDark = theme.id === "midnight";
+        var pageBgColor = (theme.bg && theme.bg.colors && theme.bg.colors[0]) || "#ffffff";
+        var bgLum = (parseInt(pageBgColor.slice(1, 3), 16) * 0.299 + parseInt(pageBgColor.slice(3, 5), 16) * 0.587 + parseInt(pageBgColor.slice(5, 7), 16) * 0.114);
+        var isDark = bgLum < 128;
         ctx.fillStyle = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(100, 116, 139, 0.09)";
         var bgH = fontSize + 2;
         var bgY = textY - 1;
@@ -643,10 +645,10 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
 
     if (block.type === "code") {
       var frame = getImageCodeFrame(width);
-      var frameX = x + (block.frameInset != null ? block.frameInset : frame.inset);
+      var frameX = x + (block.frameInset ?? frame.inset);
       var frameWidth = block.frameWidth || frame.width;
       var paddingX = block.paddingX || frame.paddingX;
-      drawRoundRect(ctx, frameX, cursor, frameWidth, block.height - 8, 11, theme.color.codeBg, theme.color.cardBorderAssistant);
+      drawRoundRect(ctx, frameX, cursor, frameWidth, block.height - 8, 11, theme.color.codeBg, theme.color.line);
       
       var isTerminalTheme = theme.id === "aurora" || theme.id === "terminal";
       if (isTerminalTheme) {
@@ -763,7 +765,7 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
     }
 
     if (block.type === "separator") {
-      ctx.strokeStyle = theme.color.cardBorderAssistant;
+      ctx.strokeStyle = theme.color.line;
       ctx.beginPath();
       ctx.moveTo(x, cursor + SEPARATOR_MARGIN_TOP);
       ctx.lineTo(x + width, cursor + SEPARATOR_MARGIN_TOP);

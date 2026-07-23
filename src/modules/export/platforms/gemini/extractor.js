@@ -79,6 +79,23 @@ export function parseGeminiMessages() {
     return String(block.normalizedSrc || block.src || block.alt || "").trim();
   }
 
+  function annotateGeminiImageAttachmentIndexes(blocks) {
+    (blocks || []).forEach(function (block) {
+      if (!block || block.type !== "image") return;
+      var sourceEl = getBlockSourceElement(block);
+      if (!sourceEl) return;
+      var attachmentOwner = closestGeminiOwner(sourceEl, "[data-image-attachment-index]");
+      var rawIndex = attachmentOwner
+        ? attachmentOwner.getAttribute("data-image-attachment-index")
+        : sourceEl.getAttribute && sourceEl.getAttribute("data-image-attachment-index");
+      var attachmentIndex = Number(rawIndex);
+      if (rawIndex != null && rawIndex !== "" && Number.isInteger(attachmentIndex) && attachmentIndex >= 0) {
+        block.geminiAttachmentIndex = attachmentIndex;
+      }
+    });
+    return blocks || [];
+  }
+
   function rememberGeminiUserImageBlocks(blocks) {
     (blocks || []).forEach(function (block) {
       var key = getGeminiImageKey(block);
@@ -381,6 +398,24 @@ export function parseGeminiMessages() {
             }
           });
 
+          // 如果 userEl 过于宽泛导致所有子元素被过滤，放宽限制：只跳过 userEl 自身
+          if (!responseCandidates.length && userEl) {
+            Array.prototype.forEach.call(turn.querySelectorAll("*"), function (child) {
+              if (child === userEl || isIgnoredContentNode(child)) {
+                return;
+              }
+              var directText = Array.prototype.slice.call(child.childNodes || []).filter(function (node) {
+                return node.nodeType === 3;
+              }).map(function (node) {
+                return String(node.textContent || "").trim();
+              }).filter(Boolean).join(" ");
+
+              if (directText && !isIgnoredRoleLabel(directText) && !userEl.contains(child)) {
+                responseCandidates.push(child);
+              }
+            });
+          }
+
           if (responseCandidates.length) {
             var highestResponse = responseCandidates[0];
             while (highestResponse.parentElement && highestResponse.parentElement !== turn &&
@@ -444,7 +479,9 @@ export function parseGeminiMessages() {
                 return out.concat(normalizeContent(element));
               }, [])
             : normalizeContent(responseContentEl);
-          var responseBlocks = chooseGeminiOwnedBlocks(responseFocusedBlocks, normalizeContent(responseEl), responseEl, responseContentEl, turn, "assistant");
+          var responseBlocks = annotateGeminiImageAttachmentIndexes(
+            chooseGeminiOwnedBlocks(responseFocusedBlocks, normalizeContent(responseEl), responseEl, responseContentEl, turn, "assistant")
+          );
           if (responseBlocks.length) {
             messages.push({
               role: "assistant",
@@ -472,6 +509,9 @@ export function parseGeminiMessages() {
             }, [])
           : normalizeContent(contentEl);
         var blocks = filterGeminiAttachmentMetadataBlocks(chooseGeminiOwnedBlocks(focusedBlocks, normalizeContent(el), el, contentEl, null, role), role);
+        if (role === "assistant") {
+          blocks = annotateGeminiImageAttachmentIndexes(blocks);
+        }
         if (blocks.length) {
           if (role === "user") {
             rememberGeminiUserImageBlocks(blocks);
