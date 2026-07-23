@@ -426,6 +426,18 @@
         return sessionWithUser;
       }
     } catch (error) {
+      // 认证错误（401/403/token expired）不应返回 stale session
+      // 只有网络错误才允许降级使用本地缓存
+      if (isLikelyAuthError(error)) {
+        await clearSession();
+        try {
+          await globalThis.CHATVAULT_ENTITLEMENTS?.clearCachedState?.();
+        } catch (cleanupError) {
+          // best-effort
+        }
+        throw error;
+      }
+
       const storedSession = await getStoredSession();
 
       if (options.allowStaleOnError !== false && storedSession?.access_token && storedSession?.user?.id) {
@@ -549,6 +561,31 @@
       await globalThis.CHATVAULT_ENTITLEMENTS?.clearCachedState?.();
     } catch (error) {
       // Entitlement cache cleanup is best-effort; local auth state is already cleared.
+    }
+
+    // 清理用户关联数据，防止跨用户信息泄露
+    const userScopedKeys = [
+      "chatvault_notion_ui_cache_v1",
+      "notion_selected_connection_id",
+      "notion_selected_data_sources",
+      "pending_checkout_intent.v1",
+      "recent_checkout_session.v1",
+      "open_subscribe_panel_request.v1"
+    ];
+    for (const key of userScopedKeys) {
+      try {
+        await storageRemove(key);
+      } catch (error) {
+        // best-effort
+      }
+    }
+    // 同时清理带命名空间前缀的 checkout intent
+    try {
+      await storageRemove(storageKey("pending_checkout_intent.v1"));
+      await storageRemove(storageKey("recent_checkout_session.v1"));
+      await storageRemove(storageKey("open_subscribe_panel_request.v1"));
+    } catch (error) {
+      // best-effort
     }
   }
 

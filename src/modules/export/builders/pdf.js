@@ -152,10 +152,7 @@ export async function renderPdfPages(messages, metadata, settingsInput, options,
     ctx.fillStyle = DESIGN.color.muted;
     var footer = [];
     if (settings.show_chatvault_badge) footer.push(t("export_pdf_footer_branding", "AI Chat Export"));
-    if (settings.show_platform_name && metadata.platform) {
-      var platformLabel = getPlatformLabel(metadata.platform);
-      footer.push(platformLabel);
-    }
+    if (settings.show_platform_name && metadata.platform) footer.push(getPlatformLabel(metadata.platform));
     if (settings.show_export_time) footer.push(formatDateDisplay(metadata.exportedAt));
     ctx.fillText(footer.join(" · "), margin, pageHeight - 36);
   }
@@ -187,6 +184,7 @@ export async function renderPdfPages(messages, metadata, settingsInput, options,
           links: links
         };
       } catch (e) {
+        console.warn("[pdf] Failed to encode page:", e);
         return null;
       } finally {
         try {
@@ -204,6 +202,10 @@ export async function renderPdfPages(messages, metadata, settingsInput, options,
     var results = await Promise.all(jobs);
     for (var i = 0; i < results.length; i++) {
       if (results[i]) encodedPages.push(results[i]);
+    }
+    var failedCount = results.filter(function (p) { return p === null; }).length;
+    if (failedCount > 0) {
+      console.warn("[pdf] " + failedCount + " page(s) failed to encode");
     }
     if (encodedPageBytes > PDF_MAX_ENCODED_PAGE_BYTES) {
       throw new Error(t("export_pdf_too_large", "This conversation is too large to export as one PDF safely. Export a shorter range."));
@@ -639,13 +641,13 @@ export async function renderPdfPages(messages, metadata, settingsInput, options,
     if (block.headers && block.headers.length) rows.push({ cells: block.headers, header: true });
     (block.rows || []).forEach(function (row) { rows.push({ cells: row, header: false }); });
     if (!rows.length) return null;
-    var columnCount = Math.max.apply(null, rows.map(function (row) { return row.cells.length; }));
+    var columnCount = rows.map(function (row) { return row.cells.length; }).reduce(function(a, b) { return Math.max(a, b); }, 0);
     var cellWidth = width / Math.max(1, columnCount);
     var rowLayouts = rows.map(function (row) {
       var cellLines = row.cells.map(function (cell) {
         return wrapText(ctx, cleanInlineMarkdownText(cell), cellWidth - 12, (row.header ? "700 " : "") + "11px " + DESIGN.font.body);
       });
-      var rowHeight = Math.max(30, Math.max.apply(null, cellLines.map(function (lines) { return lines.length; })) * 15 + 14);
+      var rowHeight = Math.max(30, cellLines.map(function (lines) { return lines.length; }).reduce(function(a, b) { return Math.max(a, b); }, 0) * 15 + 14);
       return { header: row.header, cellLines: cellLines, rowHeight: rowHeight };
     });
     return { type: "table", columnCount: columnCount, cellWidth: cellWidth, rows: rowLayouts, height: rowLayouts.reduce(function (sum, row) { return sum + row.rowHeight; }, 0) + 12 };
@@ -1300,7 +1302,7 @@ export async function renderPdfPages(messages, metadata, settingsInput, options,
 
     if (block.type === "code") {
       var frame = getPdfCodeFrame(width);
-      var frameX = x + (block.frameInset ?? frame.inset);
+      var frameX = x + (block.frameInset != null ? block.frameInset : frame.inset);
       var frameWidth = block.frameWidth || frame.width;
       var paddingX = block.paddingX || frame.paddingX;
       var hasTopRound = block.hasTopRound !== false;

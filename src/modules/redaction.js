@@ -90,14 +90,15 @@
     const enabled = options.redaction_enabled !== false;
     const redactCode = options.redactCodeBlocks !== false;
     
-    // 如果没有启用脱敏，直接深拷贝并返回
+    // 如果没有启用脱敏，直接返回原引用（不做修改）
     if (!enabled) {
       return {
-        messages: JSON.parse(JSON.stringify(messages || [])),
+        messages: messages || [],
         summary: { enabled: false, totalMatches: 0, byType: {} }
       };
     }
 
+    // 深拷贝是必要的：脱敏会修改消息内容，避免污染原始数据
     const cloned = JSON.parse(JSON.stringify(messages || []));
     const summary = {
       enabled: true,

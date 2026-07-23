@@ -192,7 +192,7 @@
     try {
       const queryPromise = handle.queryPermission({ mode: "readwrite" });
       const timeoutPromise = new Promise((resolve) => {
-        timeout = setTimeout(() => resolve("denied"), 1000);
+        timeout = setTimeout(() => resolve("prompt"), 1500);
       });
       return await Promise.race([queryPromise, timeoutPromise]);
     } catch (error) {
@@ -511,7 +511,9 @@
           const restoreWritable = await target.handle.createWritable();
           await restoreWritable.write(previousNoteBytes);
           await restoreWritable.close();
-        } catch (ignored) {}
+        } catch (restoreError) {
+          console.warn("[obsidian] Failed to restore previous note after rollback:", restoreError);
+        }
       } else {
         try { await target.parent.removeEntry(target.filename); } catch (ignored) {}
       }

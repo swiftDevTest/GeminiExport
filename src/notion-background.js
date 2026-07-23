@@ -6,7 +6,7 @@
   const API_VERSION = "2026-03-11";
   const SUPABASE_URL = "https://acgehhqcgreatcjcefub.supabase.co";
   const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q";
-  const SESSION_KEY = "chatvault_supabase_session";
+  const SESSION_KEY = (globalThis.CHATVAULT_PRODUCT_CONFIG?.storageKey || ((name) => `gemini_export.${name}`))("supabase_session.v1");
   const MANUAL_CONFIG_KEY = "chatvault_notion_manual_session_v1";
   const DATABASE_NAME = "chatvault-notion-sync-v2";
   const DATABASE_VERSION = 1;
@@ -188,8 +188,6 @@
     job.executionPlan = null;
     job.inFlightOperation = null;
     job.renderPlan = null;
-    job.title = "";
-    job.sourceUrl = "";
     job.model = "";
     job.settings = {};
     job.propertyMap = {};
@@ -584,8 +582,9 @@
   async function rateLimit(connectionId) {
     const now = Date.now();
     const nextAt = Number(rateState.get(connectionId) || 0);
-    if (nextAt > now) await delay(nextAt - now);
-    rateState.set(connectionId, Math.max(Date.now(), nextAt) + 340);
+    const target = Math.max(now, nextAt);
+    rateState.set(connectionId, target + 340);
+    if (target > now) await delay(target - now);
   }
 
   function safeErrorDetail(error) {
@@ -673,7 +672,7 @@
     const active = activeJobControllers.get(job.id);
     return notionRequest(job.destination.connectionId, token, path, {
       ...(options || {}),
-      maxAttempts: options && options.maxAttempts || 1,
+      maxAttempts: options && options.maxAttempts || 3,
       signal: active && active.signal
     });
   }
@@ -1120,7 +1119,6 @@
       job.executionPlan = null;
       job.currentOperation = 0;
       job.blockRefs = {};
-      job.knownChildren = { page: { count: 0, lastId: "" } };
       job.mediaUploads = {};
       job.updatedAt = Date.now();
       await putRecord(JOB_STORE, job);
@@ -1131,6 +1129,7 @@
           properties: buildPageProperties(job.schema, job, "Syncing")
         }
       });
+      job.knownChildren = { page: { count: 0, lastId: "" } };
       job.updatedAt = Date.now();
       await putRecord(JOB_STORE, job);
       return;

@@ -307,6 +307,15 @@ Deno.serve(async (request) => {
 
     const event = JSON.parse(rawBody) as Record<string, unknown>;
     const info = getPaddleEventInfo(event);
+
+    // 检查是否已处理过此事件
+    const existing = await supabaseRest<Record<string, unknown>[]>(
+      `product_payment_webhook_events?event_id=eq.${encodeURIComponent(info.eventId)}&processed=eq.true&limit=1`
+    );
+    if (existing && Array.isArray(existing) && existing.length > 0) {
+      return jsonResponse({ ok: true, deduplicated: true });
+    }
+
     if (!eventBelongsToProduct(info)) {
       await insertWebhookEvent(event, info, true, false);
       return jsonResponse({ ok: true, ignored: true });

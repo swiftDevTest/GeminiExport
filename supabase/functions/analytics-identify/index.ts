@@ -24,6 +24,15 @@ Deno.serve(async (request) => {
     }
 
     await ensureProfile(user);
+
+    // 检查 guest_id 是否已绑定到其他 user_id
+    const existingIdentity = await supabaseRest<Record<string, unknown>[]>(
+      `analytics_identities?guest_id=eq.${encodeURIComponent(guestId)}&user_id=not.eq.${encodeURIComponent(user.id)}&limit=1`
+    );
+    if (existingIdentity && Array.isArray(existingIdentity) && existingIdentity.length > 0) {
+      return errorResponseForRequest(request, "guest_id already bound to another user", 409);
+    }
+
     await supabaseRest("analytics_identities?on_conflict=guest_id", {
       method: "POST",
       prefer: "resolution=merge-duplicates,return=representation",

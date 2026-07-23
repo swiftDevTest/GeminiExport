@@ -61,7 +61,9 @@ export async function supabaseRest<T = unknown>(path: string, options: RestOptio
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`Supabase REST ${method} ${path} failed: ${response.status} ${text}`);
+    const detail = `Supabase REST ${method} ${path} failed: ${response.status} ${text}`;
+    console.error(detail);
+    throw new Error(`Database request failed (${response.status})`);
   }
   return text ? JSON.parse(text) as T : null as T;
 }
@@ -83,7 +85,9 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser> {
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`Invalid user access token: ${response.status} ${text}`);
+    const detail = `Invalid user access token: ${response.status} ${text}`;
+    console.error(detail);
+    throw new Error(`Authentication failed (${response.status})`);
   }
 
   const user = JSON.parse(text) as AuthUser;

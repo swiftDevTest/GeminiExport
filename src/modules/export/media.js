@@ -234,6 +234,11 @@ export var imageBytesCache = {
   }
 };
 
+export function clearImageBytesCache() {
+  _imageBytesCache.clear();
+  _imageBytesCacheBytes = 0;
+}
+
 function createAbortError() {
   var err = new Error("aborted");
   err.name = "AbortError";
@@ -749,9 +754,11 @@ export async function preloadImageForDocx(src, index, options) {
       return;
     }
     var settled = false;
+    var objectUrl = "";
     var timeoutId = setTimeout(function () {
       if (settled) return;
       settled = true;
+      try { URL.revokeObjectURL(objectUrl); } catch (e) {}
       resolve({ width: 600, height: 400 });
     }, 5000);
 
@@ -764,7 +771,7 @@ export async function preloadImageForDocx(src, index, options) {
 
     var img = new Image();
     var blob = new Blob([bytesInfo.bytes], { type: mimeType });
-    var objectUrl = URL.createObjectURL(blob);
+    objectUrl = URL.createObjectURL(blob);
     img.onload = function () {
       finish({ width: img.naturalWidth || 600, height: img.naturalHeight || 400 });
       URL.revokeObjectURL(objectUrl);
@@ -840,9 +847,11 @@ export async function preloadCanvasImages(messages, options) {
           return;
         }
         var settled = false;
+        var objectUrl = "";
         var timeoutId = setTimeout(function () {
           if (settled) return;
           settled = true;
+          try { URL.revokeObjectURL(objectUrl); } catch (e) {}
           reject(new Error("Image element load timed out"));
         }, 5000);
 
@@ -856,7 +865,7 @@ export async function preloadCanvasImages(messages, options) {
         var element = new Image();
         var mime = bytesInfo.mimeType || "image/png";
         var blob = new Blob([bytesInfo.bytes], { type: mime });
-        var objectUrl = URL.createObjectURL(blob);
+        objectUrl = URL.createObjectURL(blob);
 
         element.onload = function () {
           finish(resolve, element);

@@ -351,7 +351,7 @@
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
       chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== "local") return;
-        if ("chatvault_supabase_session" in changes) {
+        if ((productConfig?.storageKey ? productConfig.storageKey("supabase_session.v1") : "gemini_export.supabase_session.v1") in changes) {
           checkUserSession();
         }
       });

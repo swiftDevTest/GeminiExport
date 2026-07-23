@@ -77,9 +77,8 @@
       if (usageDate === today) {
         used = getUsageCount(usage);
       }
-    } else {
-      used = getUsageCount(usage);
     }
+    // 无日期字段时视为无效数据，used 保持 0，避免历史计数误报
     return Math.max(0, limits.maxExportsPerDay - used);
   }
 
@@ -306,7 +305,9 @@
 
   async function decryptCachedEntitlementState(value) {
     if (!isEncryptedCachedEntitlementState(value)) {
-      return value;
+      // 拒绝明文/非加密格式的缓存，强制从服务端重新拉取
+      // 防止攻击者通过 chrome.storage.local.set 写入明文 {plan:"pro"} 绕过验证
+      return null;
     }
 
     const cryptoRef = getCacheCrypto();

@@ -174,6 +174,47 @@ try {
     };
   }
 
+  const ENTITLEMENT_CACHE_CRYPTO_VERSION = 1;
+  const ENTITLEMENT_CACHE_CRYPTO_ALG = "AES-GCM";
+  const ENTITLEMENT_CACHE_KEY_ID = `${productConfig.storageNamespace || "chatvault_exporter"}-entitlement-cache-v1`;
+  let entitlementCacheCryptoKeyPromise = null;
+
+  function getEntitlementCacheCryptoKey() {
+    if (!globalThis.crypto?.subtle || typeof TextEncoder !== "function") {
+      return Promise.resolve(null);
+    }
+    if (!entitlementCacheCryptoKeyPromise) {
+      const keySeed = `${ENTITLEMENT_CACHE_KEY_ID}:${chrome.runtime.id || "dev"}`;
+      entitlementCacheCryptoKeyPromise = globalThis.crypto.subtle
+        .digest("SHA-256", new TextEncoder().encode(keySeed))
+        .then((digest) => globalThis.crypto.subtle.importKey("raw", digest, ENTITLEMENT_CACHE_CRYPTO_ALG, false, ["encrypt"]))
+        .catch(() => null);
+    }
+    return entitlementCacheCryptoKeyPromise;
+  }
+
+  async function encryptEntitlementCacheSnapshot(snapshot) {
+    const cryptoRef = globalThis.crypto;
+    const key = await getEntitlementCacheCryptoKey();
+    if (!cryptoRef?.subtle || !key || typeof TextEncoder !== "function") {
+      return snapshot;
+    }
+    try {
+      const iv = cryptoRef.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(JSON.stringify(snapshot));
+      const encrypted = await cryptoRef.subtle.encrypt({ name: ENTITLEMENT_CACHE_CRYPTO_ALG, iv }, key, encoded);
+      return {
+        v: ENTITLEMENT_CACHE_CRYPTO_VERSION,
+        alg: ENTITLEMENT_CACHE_CRYPTO_ALG,
+        kid: ENTITLEMENT_CACHE_KEY_ID,
+        iv: bytesToBase64Payload(iv),
+        payload: bytesToBase64Payload(new Uint8Array(encrypted))
+      };
+    } catch (error) {
+      return snapshot;
+    }
+  }
+
   async function saveEntitlementCache(session, profile, usage) {
     if (!session?.user?.id && !profile?.id && !session?.user?.email && !profile?.email) {
       return null;
@@ -195,7 +236,10 @@ try {
       }
     };
 
-    await storageSet({ [ENTITLEMENT_STATE_CACHE_KEY]: snapshot });
+    // 使用 AES-GCM 加密，与 entitlements.js 的 saveCachedState 格式一致
+    // 防止明文缓存被篡改为 {plan:"pro"}
+    const encrypted = await encryptEntitlementCacheSnapshot(snapshot);
+    await storageSet({ [ENTITLEMENT_STATE_CACHE_KEY]: encrypted });
     return snapshot;
   }
 

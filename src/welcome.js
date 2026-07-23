@@ -1,7 +1,7 @@
 (function initChatVaultWelcomePage() {
   "use strict";
 
-  const ONBOARDING_STATE_KEY = "chatvault.exporter.onboarding.v1";
+  const ONBOARDING_STATE_KEY = (globalThis.CHATVAULT_PRODUCT_CONFIG?.storageKey || ((name) => `gemini_export.${name}`))("onboarding.v1");
   const PLATFORM_URLS = {
     chatgpt: "https://chatgpt.com/",
     claude: "https://claude.ai/",

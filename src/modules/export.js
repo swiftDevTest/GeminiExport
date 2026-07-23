@@ -363,6 +363,9 @@
       if (_mods && _mods.platformFetchers && typeof _mods.platformFetchers.revokePlatformObjectUrls === "function") {
         _mods.platformFetchers.revokePlatformObjectUrls();
       }
+      if (_mods && _mods.media && typeof _mods.media.clearImageBytesCache === "function") {
+        _mods.media.clearImageBytesCache();
+      }
     },
     createExportMessageAdapter: function (opts) {
       assertMods();

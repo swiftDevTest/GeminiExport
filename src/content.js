@@ -18,8 +18,12 @@
   const developerExport = globalThis.CHATVAULT_DEVELOPER_EXPORT;
   const shareCards = globalThis.CHATVAULT_SHARE_CARDS;
   const exporter = globalThis.CHATVAULT_EXPORT;
-  const SUPABASE_SESSION_STORAGE_KEY = "chatvault_supabase_session";
-  const ENTITLEMENT_STATE_CACHE_KEY = "chatvault_exporter_entitlement_state_v1";
+  const SUPABASE_SESSION_STORAGE_KEY = productConfig?.storageKey
+    ? productConfig.storageKey("supabase_session.v1")
+    : "gemini_export.supabase_session.v1";
+  const ENTITLEMENT_STATE_CACHE_KEY = productConfig?.storageKey
+    ? productConfig.storageKey("entitlement_state.v1")
+    : "gemini_export.entitlement_state.v1";
   const EXPORT_SETTINGS_STORAGE_KEY = "chatvault_export_settings";
   const FREE_QUOTA_EXHAUSTED_MESSAGE = "You have used today's 3 free exports.";
 
@@ -895,7 +899,11 @@
 
   function loadObsidianCoordinator() {
     if (!obsidianCoordinatorPromise) {
-      obsidianCoordinatorPromise = import(chrome.runtime.getURL("src/modules/obsidian/coordinator.js"));
+      obsidianCoordinatorPromise = import(chrome.runtime.getURL("src/modules/obsidian/coordinator.js"))
+        .catch((err) => {
+          obsidianCoordinatorPromise = null;
+          throw err;
+        });
     }
     return obsidianCoordinatorPromise;
   }
@@ -2566,7 +2574,7 @@
     return new Promise((resolve) => {
       chrome.storage.local.get([
         NOTION_UI_CACHE_KEY,
-        "chatvault_supabase_session",
+        SUPABASE_SESSION_STORAGE_KEY,
         "notion_selected_connection_id",
         "notion_selected_data_sources"
       ], resolve);
@@ -2585,7 +2593,7 @@
 
   function hydrateBatchNotionCache(stored) {
     const cache = stored?.[NOTION_UI_CACHE_KEY];
-    const sessionUserId = String(stored?.chatvault_supabase_session?.user?.id || "");
+    const sessionUserId = String(stored?.[SUPABASE_SESSION_STORAGE_KEY]?.user?.id || "");
     if (!cache || cache.version !== 1 || String(cache.userId || "") !== sessionUserId) return false;
     const connections = (Array.isArray(cache.connections) ? cache.connections : [])
       .filter((item) => item?.mode === "oauth" && item?.id);
@@ -3637,6 +3645,9 @@
             failureCount: failures.length,
             title: item.title || ""
           });
+
+          // 让浏览器有机会处理 UI 更新和 GC，避免批量导出时长时间阻塞
+          await new Promise((resolve) => setTimeout(resolve, 0));
         } catch (error) {
           if (error?.message === "Export cancelled." || error?.name === "AbortError") {
             throw error;
@@ -3672,7 +3683,7 @@
       });
 
       hideExportProgress();
-      const saveResult = await saveBatchPreparedFiles(preparedFiles, rootName);
+      const saveResult = await saveBatchPreparedFiles(preparedFiles, rootName, signal);
       if (!saveResult || !saveResult.ok) {
         if (saveResult?.cancelled) {
           showPageToast(tx("content_export_save_cancelled", "Export cancelled.", "导出已取消。"));
@@ -4585,11 +4596,14 @@
     return fallbackPath;
   }
 
-  async function saveBatchPreparedFiles(preparedFiles, rootName) {
+  async function saveBatchPreparedFiles(preparedFiles, rootName, signal) {
     if (!preparedFiles.length) {
       return { ok: false, error: "No files were prepared." };
     }
     for (const file of preparedFiles) {
+      if (signal && signal.aborted) {
+        return { ok: false, cancelled: true, error: "Export cancelled." };
+      }
       const result = await exporter.saveBlob(file.blob, file.downloadPath, { saveAs: false });
       if (!result.ok) return result;
     }

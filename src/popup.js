@@ -2272,7 +2272,7 @@
   let notionUiInitialized = false;
 
   function notionCacheUserId(stored) {
-    return String(stored?.chatvault_supabase_session?.user?.id || "");
+    return String(stored?.[supabaseSessionStorageKey]?.user?.id || "");
   }
 
   function safeCachedConnections(connections) {
@@ -2344,7 +2344,7 @@
       chrome.storage.local.get([
         "notion_selected_connection_id",
         "notion_selected_data_sources",
-        "chatvault_supabase_session",
+        supabaseSessionStorageKey,
         NOTION_UI_CACHE_KEY,
         "notion_token",
         "notion_db_id"

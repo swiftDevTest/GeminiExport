@@ -24,6 +24,8 @@ function createMissingDependencyError(name) {
   const THOUGHT_LINE_PATTERN = /^\s*(?:已\s*(?:思考|推理)|思考中|推理中|思考(?:了)?|推理(?:了)?|(?:Thought|Reasoned|Worked)\s+(?:for|about)|Thinking|Reasoning|Working)(?:\b|[\s:：,，。.·-]|$)[\s\S]{0,160}$/i;
   const THOUGHT_ATTR_PATTERN = /\b(?:reasoning|thought|thinking|chain[-_ ]?of[-_ ]?thought|model[-_ ]?thought|oai[-_ ]?reasoning)\b/i;
 
+  const _platformObjectUrls = new Set();
+
   async function mapLimit(array, limit, fn) {
     var results = [];
     var index = 0;
@@ -3696,7 +3698,10 @@ function createMissingDependencyError(name) {
                 return normalizeChatGptDownloadUrl(getChatGptDownloadUrlFromPayload(jsonData));
               } catch (jsonErr) {
                 var fallbackBlob = await readPlatformResponseBody(fileResp, "blob", "ChatGPT file", 4000);
-                return fallbackBlob.size ? URL.createObjectURL(fallbackBlob) : "";
+                if (!fallbackBlob.size) return "";
+                var fallbackObjectUrl = URL.createObjectURL(fallbackBlob);
+                _platformObjectUrls.add(fallbackObjectUrl);
+                return fallbackObjectUrl;
               }
             } catch (err) {
               return "";
@@ -3920,6 +3925,12 @@ function createMissingDependencyError(name) {
       mergePageHtmlPresentation: mergePageHtmlPresentation,
       parseClaudeConversationPayload: parseClaudeConversationPayload,
       parseGeminiBatchExecutePayloads: parseGeminiBatchExecutePayloads,
-      parseGeminiConversationPayloads: parseGeminiConversationPayloads
+      parseGeminiConversationPayloads: parseGeminiConversationPayloads,
+      revokePlatformObjectUrls() {
+        for (const url of _platformObjectUrls) {
+          try { URL.revokeObjectURL(url); } catch (e) {}
+        }
+        _platformObjectUrls.clear();
+      }
     };
   }

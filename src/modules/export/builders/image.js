@@ -450,13 +450,13 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
     if (block.headers && block.headers.length) rows.push({ cells: block.headers, header: true });
     (block.rows || []).forEach(function (row) { rows.push({ cells: row, header: false }); });
     if (!rows.length) return null;
-    var columnCount = Math.max.apply(null, rows.map(function (row) { return row.cells.length; }));
+    var columnCount = rows.map(function (row) { return row.cells.length; }).reduce(function(a, b) { return Math.max(a, b); }, 0);
     var cellWidth = width / Math.max(1, columnCount);
     var rowLayouts = rows.map(function (row) {
       var cellLines = row.cells.map(function (cell) {
         return wrapText(measureCtx, cleanInlineMarkdownText(cell), cellWidth - 18, (row.header ? "800 " : "") + "14px " + theme.font.body);
       });
-      var rowHeight = Math.max(38, Math.max.apply(null, cellLines.map(function (lines) { return Math.max(1, lines.length); })) * 20 + 20);
+      var rowHeight = Math.max(38, cellLines.map(function (lines) { return Math.max(1, lines.length); }).reduce(function(a, b) { return Math.max(a, b); }, 0) * 20 + 20);
       return { header: row.header, cellLines: cellLines, rowHeight: rowHeight };
     });
     return {
@@ -643,7 +643,7 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
 
     if (block.type === "code") {
       var frame = getImageCodeFrame(width);
-      var frameX = x + (block.frameInset ?? frame.inset);
+      var frameX = x + (block.frameInset != null ? block.frameInset : frame.inset);
       var frameWidth = block.frameWidth || frame.width;
       var paddingX = block.paddingX || frame.paddingX;
       drawRoundRect(ctx, frameX, cursor, frameWidth, block.height - 8, 11, theme.color.codeBg, theme.color.cardBorderAssistant);
