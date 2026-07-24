@@ -21,13 +21,13 @@
     "message": "Export to JSON"
   },
   "extensionName": {
-    "message": "Gemini Exporter - Privacy-First Local Chat Export to PDF & More"
+    "message": "Gemini Exporter: PDF/Word/Markdown + Notion/Obsidian Sync"
   },
   "extensionShortName": {
     "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "Export Gemini chats locally to PDF, Word, Markdown, PNG and more. Privacy-first: all parsing and rendering happen in your browser. No chat content is uploaded to any server."
+    "message": "Sync Gemini to Notion / Obsidian in one click, or export private PDF, DOCX, Markdown and more."
   },
   "extensionActionTitle": {
     "message": "Gemini Exporter - Privacy-First Local Chat Export to PDF & More"
@@ -1669,5 +1669,14 @@
   },
   "export_image_unavailable": {
     "message": "Image unavailable in offline export"
+  },
+  "obsidian_not_a_vault": {
+    "message": "The selected folder does not look like an Obsidian Vault (no .obsidian directory). You can still use it, but opening notes in Obsidian may not work."
+  },
+  "obsidian_permission_check_hint": {
+    "message": "Permission check timed out. Click \"Verify and save\" to retry."
+  },
+  "obsidian_permission_checking": {
+    "message": "Checking Vault permission..."
   }
 }

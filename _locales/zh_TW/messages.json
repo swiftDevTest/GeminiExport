@@ -21,13 +21,13 @@
     "message": "匯出為 JSON"
   },
   "extensionName": {
-    "message": "Gemini Exporter - 隱私優先的本機聊天匯出工具"
+    "message": "Gemini Exporter：PDF、Word、MD 匯出與 Notion/Obsidian 同步"
   },
   "extensionShortName": {
     "message": "Gemini Export"
   },
   "extensionDescription": {
-    "message": "本機將 Gemini 對話匯出為 PDF、Word、Markdown、圖片等格式。隱私優先：所有解析與渲染均在瀏覽器本機完成，聊天正文絕不上傳到任何伺服器。"
+    "message": "一鍵將 Gemini 對話同步至 Notion / Obsidian，或私密匯出 PDF、DOCX、Markdown 等檔案。"
   },
   "extensionActionTitle": {
     "message": "Gemini Exporter - 隱私優先的本機聊天匯出工具"
@@ -1669,5 +1669,14 @@
   },
   "export_image_unavailable": {
     "message": "圖片無法用於離線匯出"
+  },
+  "obsidian_not_a_vault": {
+    "message": "所選資料夾似乎不是 Obsidian Vault（未找到 .obsidian 目錄）。仍可繼續使用，但在 Obsidian 中開啟筆記可能無法生效。"
+  },
+  "obsidian_permission_check_hint": {
+    "message": "權限檢查逾時，點擊\"驗證並儲存\"重試。"
+  },
+  "obsidian_permission_checking": {
+    "message": "正在檢查 Vault 權限..."
   }
 }

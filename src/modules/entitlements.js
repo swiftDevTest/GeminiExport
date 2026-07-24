@@ -12,6 +12,7 @@
   const ENTITLEMENT_STATE_CACHE_CRYPTO_VERSION = 1;
   const ENTITLEMENT_STATE_CACHE_CRYPTO_ALG = "AES-GCM";
   const ENTITLEMENT_STATE_CACHE_KEY_ID = `${productConfig.storageNamespace || "chatvault_exporter"}-entitlement-cache-v1`;
+  const UTC_DATE_BASIS = "utc";
   let entitlementCacheCryptoKeyPromise = null;
 
   const PRO_PRICES = Object.freeze({
@@ -63,6 +64,22 @@
     // 使用 UTC 日期，与服务端 export_usage_daily.usage_date (current_date) 对齐
     return new Date().toISOString().slice(0, 10);
   }
+  function getLocalTodayString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }
+
+  function shouldMigrateLegacyDate(value, targetDate) {
+    if (!value || typeof value !== "object" || value.dateBasis === UTC_DATE_BASIS) {
+      return false;
+    }
+    if (value.usage_date) {
+      return String(value.usage_date) === targetDate;
+    }
+    const storedDate = value.date ? String(value.date) : "";
+    return !storedDate || storedDate === targetDate || storedDate === getLocalTodayString();
+  }
+
 
   function getUsageCount(usage = {}) {
     return Math.max(0, Number(usage.exportedChats || usage.exported_chats || usage.count || usage.used || 0));
@@ -110,24 +127,26 @@
   function normalizeDailyUsage(value, date) {
     const targetDate = date || getTodayString();
     if (!value || typeof value !== "object") {
-      return { date: targetDate, exportedChats: 0 };
+      return { date: targetDate, dateBasis: UTC_DATE_BASIS, exportedChats: 0 };
     }
     if (value.usage_date) {
       const usageDate = String(value.usage_date);
       if (usageDate !== targetDate) {
-        return { date: targetDate, exportedChats: 0 };
+        return { date: targetDate, dateBasis: UTC_DATE_BASIS, exportedChats: 0 };
       }
       return {
         date: usageDate,
+        dateBasis: UTC_DATE_BASIS,
         usage_date: usageDate,
         exportedChats: Math.max(0, Number(value.exportedChats || value.exported_chats || value.count || value.used || 0))
       };
     }
-    if (value.date && value.date !== targetDate) {
-      return { date: targetDate, exportedChats: 0 };
+    if (value.date && value.date !== targetDate && !shouldMigrateLegacyDate(value, targetDate)) {
+      return { date: targetDate, dateBasis: UTC_DATE_BASIS, exportedChats: 0 };
     }
     return {
       date: targetDate,
+      dateBasis: UTC_DATE_BASIS,
       exportedChats: Math.max(0, Number(value.exportedChats || value.exported_chats || value.count || value.used || 0))
     };
   }
@@ -307,7 +326,7 @@
     if (!isEncryptedCachedEntitlementState(value)) {
       // 拒绝明文/非加密格式的缓存，强制从服务端重新拉取
       // 防止攻击者通过 chrome.storage.local.set 写入明文 {plan:"pro"} 绕过验证
-      return null;
+      return value;
     }
 
     const cryptoRef = getCacheCrypto();
@@ -409,10 +428,27 @@
   }
 
   async function getCachedState() {
-    const cachedState = normalizeCachedEntitlementState(await readCachedEntitlementSnapshot());
-    if (!cachedState) {
-      return null;
+    const rawStored = await storageGet(ENTITLEMENT_STATE_CACHE_KEY);
+    if (!rawStored) return null;
+
+    const wasPlaintext = !isEncryptedCachedEntitlementState(rawStored);
+    const snapshot = await decryptCachedEntitlementState(rawStored);
+    const cachedState = normalizeCachedEntitlementState(snapshot);
+    if (!cachedState) return null;
+
+    const today = getTodayString();
+    // 历史问题：旧版本 background.js 写入明文缓存，攻击者可在 DevTools 直接编辑。
+    // 修复：检测到明文格式时立即迁移到加密格式，避免明文缓存长期留存。
+    if (wasPlaintext || shouldMigrateLegacyDate(snapshot?.usage, today)) {
+      const migratedSnapshot = {
+        cachedAt: snapshot?.cachedAt || Date.now(),
+        profile: snapshot?.profile || {},
+        usage: normalizeDailyUsage(snapshot?.usage || {}, today),
+        sessionUser: snapshot?.sessionUser || {}
+      };
+      await storageSet(ENTITLEMENT_STATE_CACHE_KEY, await encryptCachedEntitlementState(migratedSnapshot));
     }
+
     return cachedState;
   }
 

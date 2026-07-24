@@ -1,19 +1,24 @@
-Gemini Exporter is a privacy-first, local-first AI chat export tool that runs in your browser. It turns your conversations on Gemini into PDF, Docs, MD and More local files for editing, sharing, archiving, and handoff.
+Gemini Exporter is a privacy-first browser extension for turning Gemini conversations into organized knowledge and polished files. Sync Gemini conversations directly to Notion or Obsidian, or export them locally in the format you need.
 
-Key highlights:
-1. Private local conversion: File generation happens in your browser. Chat message bodies are not uploaded to remote servers or a remote conversion service, helping protect sensitive work, research, and personal privacy.
-2. Report-grade formatting: Generated files use polished document layouts with heading hierarchy, code blocks, tables, quotes, math formulas, images, and professional themes for academic, business, and archive workflows.
-3. AI-only report mode: Filter out user prompts and combine consecutive AI answers into a clean report with an automatic table of contents. Turn a conversation into a tutorial, technical plan, research brief, or summary document.
-4. Export receipt and archive proof: Create an export receipt with export time, source URL, platform name, and file SHA-256 checksum for research, audit, compliance, or work records.
-5. Developer code export: Automatically index code blocks in the conversation and save multiple code snippets as language-specific files in a downloadable package.
+Key features:
+
+1. One-click Notion / Obsidian sync: Send the current conversation to a connected Notion database or Obsidian vault without copying and pasting.
+2. Batch sync and batch export: Select multiple conversations and sync them to Notion or Obsidian, or export them together as files. Process up to 10 chats in one batch.
+3. Multiple export formats: Supports PDF, DOCX, Markdown and more formats.
+4. Private local file generation: File conversion runs in your browser. Chat message bodies are not uploaded to a remote conversion server.
+5. Professional themes and fields: Choose from document themes including Minimalist, Natural, Editorial, Terminal, Aurora and Oxford. Control titles, timestamps, platform labels and role fields.
+6. Export only what matters: Select individual messages, question-and-answer turns or AI replies before syncing or exporting.
+7. Report and developer tools: Build AI-only reports, preserve code blocks, and package code snippets into language-specific files.
 
 How to use:
-- Install the extension and open any conversation page on Gemini.
-- A lightweight Export button appears in the lower-right corner of the page.
-- Choose a PDF, Docs, MD and More output type.
-- Select the export range and theme, then generate and download the file locally.
 
-Gemini Exporter is designed for reports, research notes, project handoff, code archives, client deliverables, study materials, and personal backups that should remain readable and portable.
+- Install the extension and open a conversation on Gemini (gemini.google.com).
+- Open Gemini Exporter and choose Notion, Obsidian or a file format.
+- For multiple conversations, open Batch Export, select the chats and choose a destination.
+- Review the range and theme, then sync or download.
+
+Gemini Exporter is useful for research notes, project handoffs, knowledge bases, code archives, client deliverables, study materials and personal backups.
 
 Support:
-For questions, feedback, or support requests, contact chatvaultaisupport@gmail.com.
+
+For questions, feedback or support requests, contact chatvaultaisupport@gmail.com.
