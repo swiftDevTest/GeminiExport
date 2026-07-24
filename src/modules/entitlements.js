@@ -12,6 +12,7 @@
   const ENTITLEMENT_STATE_CACHE_CRYPTO_VERSION = 1;
   const ENTITLEMENT_STATE_CACHE_CRYPTO_ALG = "AES-GCM";
   const ENTITLEMENT_STATE_CACHE_KEY_ID = `${productConfig.storageNamespace || "chatvault_exporter"}-entitlement-cache-v1`;
+  const ENTITLEMENT_CACHE_TTL_MS = 5 * 60 * 1000;
   const UTC_DATE_BASIS = "utc";
   let entitlementCacheCryptoKeyPromise = null;
 
@@ -400,10 +401,10 @@
       return null;
     }
 
-    // 缓存 TTL 24 小时：Pro 用户取消订阅后，本地缓存的 isProUser:true 不会无限期生效
-    // 服务端 verify-export-entitlement 会兜底拒绝，此处 TTL 作为防御纵深
-    const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-    if (Date.now() - cachedAt > CACHE_TTL_MS) {
+    // Enforce TTL for all cached states so both Pro→Free and Free→Pro transitions
+    // are eventually detected. Without this, a stale Free cache would never expire
+    // and block server-side membership upgrades from reaching the frontend.
+    if (Date.now() - cachedAt > ENTITLEMENT_CACHE_TTL_MS) {
       return null;
     }
 
@@ -472,6 +473,7 @@
 
   globalThis.CHATVAULT_ENTITLEMENTS = {
     DEFAULT_FREE_LIMITS,
+    ENTITLEMENT_CACHE_TTL_MS,
     ENTITLEMENT_STATE_CACHE_KEY,
     ENTITLEMENT_STATE_CACHE_CRYPTO_ALG,
     ENTITLEMENT_STATE_CACHE_CRYPTO_VERSION,
