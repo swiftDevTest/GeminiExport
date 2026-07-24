@@ -12,7 +12,6 @@
   const ENTITLEMENT_STATE_CACHE_CRYPTO_VERSION = 1;
   const ENTITLEMENT_STATE_CACHE_CRYPTO_ALG = "AES-GCM";
   const ENTITLEMENT_STATE_CACHE_KEY_ID = `${productConfig.storageNamespace || "chatvault_exporter"}-entitlement-cache-v1`;
-  const ENTITLEMENT_CACHE_TTL_MS = 5 * 60 * 1000;
   const UTC_DATE_BASIS = "utc";
   let entitlementCacheCryptoKeyPromise = null;
 
@@ -401,13 +400,6 @@
       return null;
     }
 
-    // Enforce TTL for all cached states so both Pro→Free and Free→Pro transitions
-    // are eventually detected. Without this, a stale Free cache would never expire
-    // and block server-side membership upgrades from reaching the frontend.
-    if (Date.now() - cachedAt > ENTITLEMENT_CACHE_TTL_MS) {
-      return null;
-    }
-
     const profile = normalizeProfile(value.profile || {});
     const usage = normalizeDailyUsage(value.usage || {}, getTodayString());
     const sessionUser = getSessionUserForCache(value, profile);
@@ -473,7 +465,6 @@
 
   globalThis.CHATVAULT_ENTITLEMENTS = {
     DEFAULT_FREE_LIMITS,
-    ENTITLEMENT_CACHE_TTL_MS,
     ENTITLEMENT_STATE_CACHE_KEY,
     ENTITLEMENT_STATE_CACHE_CRYPTO_ALG,
     ENTITLEMENT_STATE_CACHE_CRYPTO_VERSION,
