@@ -1862,12 +1862,10 @@
     });
 
     // 点击 X 关闭按钮
+    // 点击 X 关闭按钮：始终仅关闭弹窗视图，不打断后台同步
+    // 同步进行中的取消操作应通过进度条上的"取消"按钮触发
     shadowRoot.getElementById("cv-batch-btn-close").addEventListener("click", () => {
-      if (globalThis.CHATVAULT_IS_BATCH_EXPORT) {
-        cancelInPageBatchExport();
-      } else {
-        closeBatchModal();
-      }
+      closeBatchModal();
     });
 
     // 保存（导出）按钮
@@ -3216,6 +3214,16 @@
     const overlay = shadowRoot.getElementById("cv-batch-modal-overlay");
     if (!overlay) return;
 
+    // 如果后台仍有批量同步在进行，仅切回当前模式并恢复可交互 UI，
+    // 让用户可以查看进度或切换 tab，而不打断后台任务
+    if (globalThis.CHATVAULT_IS_BATCH_EXPORT) {
+      setBatchExportingUi(false);
+      setBatchMode(batchMode);
+      overlay.classList.add("active");
+      batchModalOpen = true;
+      return;
+    }
+
     const platform = exporter.detectPlatform();
     const titleTextEl = shadowRoot.getElementById("cv-batch-title-text");
     if (titleTextEl) {
@@ -3409,7 +3417,8 @@
 
     if (clearBtn) clearBtn.textContent = isExporting ? getBatchCancelLabel() : getBatchClearLabel();
     if (exportBtn) exportBtn.disabled = isExporting || shadowRoot.querySelectorAll(".cv-batch-item-row.selected").length === 0;
-    if (closeBtn) closeBtn.setAttribute("aria-label", isExporting ? tx("content_cancel_export", "Cancel export", "取消导出") : getBatchCloseLabel());
+    // 关闭按钮始终仅用于关闭弹窗视图，标签保持为"关闭"
+    if (closeBtn) closeBtn.setAttribute("aria-label", getBatchCloseLabel());
     shadowRoot.querySelectorAll(".cv-batch-item-row").forEach(row => {
       row.classList.toggle("is-exporting", isExporting);
     });
@@ -3728,6 +3737,16 @@
       await loadState({ localOnly: true, skipVerify: true });
       await exporter.preload();
 
+      // 服务器预检：避免用户花费时间导出后才发现额度不足
+      const preCheck = await verifySignedInExportAccess(total);
+      if (!preCheck.allowed) {
+        throw new Error(preCheck.error || tx(
+          "content_batch_quota_exceeded",
+          "Daily export limit reached. Upgrade to Pro for unlimited exports.",
+          "已达每日导出上限，升级 Pro 可无限导出。"
+        ));
+      }
+
       for (let index = 0; index < selectedItems.length; index += 1) {
         if (signal.aborted) throw new Error("Export cancelled.");
         const item = selectedItems[index];
@@ -3824,9 +3843,23 @@
         }
         throw new Error(saveResult?.error || "Export save failed.");
       }
+      const savedCount = Math.max(0, Number(saveResult.savedCount) || 0);
+      if (Array.isArray(saveResult.failures) && saveResult.failures.length) {
+        saveResult.failures.forEach((failure) => {
+          failures.push({
+            title: failure.filename || "",
+            error: failure.error || "Export save failed."
+          });
+        });
+      }
 
-      if (!isProUser && usageStore && typeof usageStore.incrementDailyUsage === "function") {
-        await recordSuccessfulExportUsage(preparedFiles.length);
+      // 服务器扣减：按实际成功导出数量扣减 Free 用户额度，避免本地计数被绕过
+      if (!isProUser) {
+        const consumeResult = await syncVerifiedExportEntitlement(savedCount, { consume: true });
+        if (!consumeResult || !consumeResult.allowed) {
+          console.warn("Batch export server consume failed:", consumeResult && consumeResult.error);
+        }
+        await recordSuccessfulExportUsage(savedCount, { serverConsumed: Boolean(consumeResult?.serverConsumed) });
         updateUIState();
       }
 
@@ -4155,6 +4188,10 @@
   }
 
   async function startInPageBatchExport() {
+    if (globalThis.CHATVAULT_IS_BATCH_EXPORT) {
+      showPageToast(tx("content_batch_already_running", "A batch sync is already running. Please wait or cancel it first.", "已有批量同步任务在运行，请等待完成或先取消。"));
+      return;
+    }
     const selectedRows = shadowRoot.querySelectorAll(".cv-batch-item-row.selected");
     const selectedItems = [];
     
@@ -4740,14 +4777,30 @@
     if (!preparedFiles.length) {
       return { ok: false, error: "No files were prepared." };
     }
+    const failures = [];
+    let savedCount = 0;
     for (const file of preparedFiles) {
       if (signal && signal.aborted) {
         return { ok: false, cancelled: true, error: "Export cancelled." };
       }
       const result = await exporter.saveBlob(file.blob, file.downloadPath, { saveAs: false });
-      if (!result.ok) return result;
+      // 保存后立即释放 Blob 引用，降低批量导出内存峰值
+      file.blob = null;
+      if (!result.ok) {
+        failures.push({ filename: file.filename, error: result.error });
+      } else {
+        savedCount += 1;
+      }
     }
-    return { ok: true, filename: rootName };
+    if (failures.length) {
+      return {
+        ok: savedCount > 0,
+        error: failures.length + " of " + preparedFiles.length + " files failed to save.",
+        failures,
+        savedCount
+      };
+    }
+    return { ok: true, filename: rootName, savedCount };
   }
 
   // 更新整体面板状态
@@ -5677,6 +5730,8 @@
       activeNotionJobId = "";
       chrome.runtime.sendMessage({ type: "CHATVAULT_NOTION_CANCEL_JOB", jobId }, () => void chrome.runtime.lastError);
     }
+    // 同步重置 Obsidian 单次同步标志，避免 abort 信号未被及时检测时下次同步被误判为"已有任务运行"
+    activeObsidianSingleSync = false;
     hideExportProgress();
     const overlay = shadowRoot.getElementById("progress-overlay");
     if (overlay) {

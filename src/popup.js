@@ -2765,17 +2765,18 @@
       document.getElementById("btn-connect-notion-settings")
     ].filter(Boolean);
     const auth = globalThis.CHATVAULT_SUPABASE_AUTH;
-    buttons.forEach((button) => { button.disabled = true; });
+    buttons.forEach((button) => {
+      button.disabled = true;
+      if (button.id === "btn-oauth-notion") {
+        button.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:6px;"></span>' + escapeHtml(t("notion_connecting", "Connecting...", "连接中..."));
+      }
+    });
     try {
-      let session = auth ? await auth.getSession({
-        skipUserRefresh: false,
-        refreshUser: true,
-        allowStaleOnError: false
-      }).catch(() => null) : null;
+      let session = auth ? await auth.getSession({ skipUserRefresh: true }).catch(() => null) : null;
       if (!hasActiveAuthSession(session)) {
         const confirmed = await showCustomConfirm(
           t("onboard_title_login", "Sign in to continue"),
-          t("notion_signin_required", "Sign in first. After sign-in, click Connect Notion again to authorize your workspace."),
+          t("notion_signin_required", "Sign in first. Notion workspace authorization will open automatically after sign-in."),
           {
             okText: t("popup_btn_login", "Sign In"),
             cancelText: t("btn_cancel", "Cancel"),
@@ -2788,18 +2789,21 @@
           showToast(t("popup_login_service_unavailable", "Sign-in is temporarily unavailable. Please refresh and try again."));
           return;
         }
-        session = await auth.signInWithGoogle();
-        if (!hasActiveAuthSession(session)) {
-          session = await auth.getSession?.({ skipUserRefresh: false, allowStaleOnError: false }).catch(() => null);
-        }
-        if (!hasActiveAuthSession(session)) {
-          showToast(t("popup_login_incomplete", "Sign-in was not completed. Please try again."));
+        try {
+          session = await auth.signInWithGoogle();
+          if (!hasActiveAuthSession(session)) {
+            session = await auth.getSession?.({ skipUserRefresh: false, allowStaleOnError: false }).catch(() => null);
+          }
+          if (!hasActiveAuthSession(session)) {
+            showToast(t("popup_login_incomplete", "Sign-in was not completed. Please try again."));
+            return;
+          }
+          await showStoredAuthStateImmediately();
+          refreshPopupState(true);
+        } catch (loginError) {
+          showToast(t("popup_login_failed", "Sign-in failed: $1", loginError?.message || "Sign-in failed."));
           return;
         }
-        await showStoredAuthStateImmediately();
-        refreshPopupState(true);
-        showToast(t("notion_signin_again", "Signed in. Click Connect Notion again to continue."));
-        return;
       }
       showToast(t("notion_oauth_opening", "Opening Notion authorization..."));
       await notionBackgroundMessage({ type: "CHATVAULT_NOTION_START_OAUTH" });
