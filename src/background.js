@@ -25,7 +25,7 @@ try {
   const productConfig = globalThis.CHATVAULT_PRODUCT_CONFIG || {};
   const storageKey = typeof productConfig.storageKey === "function"
     ? productConfig.storageKey
-    : (name) => `chatvault_exporter.${name}`;
+    : (name) => `gemini_export.${name}`;
   const PRODUCT_ID = productConfig.productId || "gemini_export";
   const PRODUCT_SLUG = productConfig.productSlug || "gemini-export";
   const PRODUCT_NAME = productConfig.productName || "Gemini Export";
@@ -180,7 +180,7 @@ try {
 
   const ENTITLEMENT_CACHE_CRYPTO_VERSION = 1;
   const ENTITLEMENT_CACHE_CRYPTO_ALG = "AES-GCM";
-  const ENTITLEMENT_CACHE_KEY_ID = `${productConfig.storageNamespace || "chatvault_exporter"}-entitlement-cache-v1`;
+  const ENTITLEMENT_CACHE_KEY_ID = `${productConfig.storageNamespace || "gemini_export"}-entitlement-cache-v1`;
   let entitlementCacheCryptoKeyPromise = null;
 
   function getEntitlementCacheCryptoKey() {
@@ -912,6 +912,7 @@ try {
 
   chrome.runtime.onInstalled.addListener((details) => {
     createContextMenus();
+    migrateLegacyStorageKeys();
 
     if (!details || details.reason !== "install") {
       return;
@@ -925,6 +926,49 @@ try {
       }
     }, openWelcomePage);
   });
+
+
+  // 一次性迁移：将历史 chatvault_* 硬编码 key 复制到 product-config 命名空间下的新 key。
+  // 只在老 key 有值且新 key 为空时复制，不删除老 key，避免影响仍依赖老 key 的旧版本。
+  // 多个 sub-product 各自独立迁移（MIGRATION_DONE_KEY 已命名空间化），互不干扰。
+  function migrateLegacyStorageKeys() {
+    const MIGRATION_DONE_KEY = storageKey("storage_migration_v1_done");
+    chrome.storage.local.get([MIGRATION_DONE_KEY], (result) => {
+      if (result && result[MIGRATION_DONE_KEY]) return;
+      const legacyToNew = [
+        ["obsidian_config.v1", "chatvault_obsidian_config_v1"],
+        ["notion_manual_session.v1", "chatvault_notion_manual_session_v1"],
+        ["notion_notification_links.v1", "chatvault_notion_notification_links_v1"],
+        ["notion_property_maps.v1", "chatvault_notion_property_maps_v1"],
+        ["notion_ui_cache.v1", "chatvault_notion_ui_cache_v1"],
+        ["ui_language.v1", "chatvault_ui_language_v1"],
+        ["onboarding.v1", "chatvault.exporter.onboarding.v1"],
+        ["notion_selected_data_sources", "notion_selected_data_sources"],
+        ["notion_selected_connection_id", "notion_selected_connection_id"]
+      ];
+      const oldKeys = legacyToNew.map((entry) => entry[1]);
+      chrome.storage.local.get(oldKeys, (stored) => {
+        const updates = {};
+        const newKeys = legacyToNew.map((entry) => storageKey(entry[0]));
+        chrome.storage.local.get(newKeys, (existing) => {
+          for (let i = 0; i < legacyToNew.length; i++) {
+            const newKey = newKeys[i];
+            const oldKey = legacyToNew[i][1];
+            if (stored[oldKey] !== undefined && stored[oldKey] !== null &&
+                (existing[newKey] === undefined || existing[newKey] === null)) {
+              updates[newKey] = stored[oldKey];
+            }
+          }
+          updates[MIGRATION_DONE_KEY] = true;
+          chrome.storage.local.set(updates, () => {
+            if (chrome.runtime.lastError) {
+              console.warn("[Migration] storage_migration_v1 failed:", chrome.runtime.lastError.message);
+            }
+          });
+        });
+      });
+    });
+  }
 
   function sendContextExportMessage(tabId, format, allowRetry) {
     chrome.tabs.sendMessage(tabId, {

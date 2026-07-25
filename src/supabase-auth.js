@@ -4,7 +4,7 @@
   const productConfig = globalThis.CHATVAULT_PRODUCT_CONFIG || {};
   const storageKey = typeof productConfig.storageKey === "function"
     ? productConfig.storageKey
-    : (name) => `chatvault_exporter.${name}`;
+    : (name) => `gemini_export.${name}`;
   const SESSION_KEY = storageKey("supabase_session.v1");
   const SESSION_MUTATION_EPOCH_KEY = storageKey("supabase_session_epoch.v1");
   const ENTITLEMENT_STATE_CACHE_KEY = storageKey("entitlement_state.v1");
@@ -526,7 +526,7 @@
 
     if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
       setAuthLoading(false);
-      return Promise.reject(new Error("Google Sign-In requires the ChatVault extension background service."));
+      return Promise.reject(new Error("Google Sign-In requires the Gemini Export extension background service."));
     }
 
     if (!config.googleClientId || config.googleClientId === "YOUR_GOOGLE_CLIENT_ID") {
@@ -559,7 +559,7 @@
         }
 
         try {
-          setAuthLoading(true, "Signing In To ChatVault...");
+          setAuthLoading(true, "Signing In To Gemini Export...");
           let session = response.session
             ? await storeSession(normalizeSession(null, response.session))
             : await signInWithIdToken(response.idToken, response.accessToken, response.nonce);
@@ -606,9 +606,9 @@
 
     // 清理用户关联数据，防止跨用户信息泄露
     const userScopedKeys = [
-      "chatvault_notion_ui_cache_v1",
-      "notion_selected_connection_id",
-      "notion_selected_data_sources",
+      storageKey("notion_ui_cache.v1"),
+      storageKey("notion_selected_connection_id"),
+      storageKey("notion_selected_data_sources"),
       "pending_checkout_intent.v1",
       "recent_checkout_session.v1",
       "open_subscribe_panel_request.v1"

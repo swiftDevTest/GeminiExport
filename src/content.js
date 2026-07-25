@@ -31,7 +31,7 @@
   const FREE_QUOTA_EXHAUSTED_MESSAGE = "You have used today's 3 free exports.";
 
   if (!exporter) {
-    console.error("[AI Chat Export] Shared export core is missing. Refresh the page.");
+    console.error("[Gemini Export] Shared export core is missing. Refresh the page.");
     return;
   }
 
@@ -975,7 +975,9 @@
   let batchMode = "files";
   let batchSelectedFormat = "pdf";
   let batchSelectedTheme = "default";
-  const NOTION_UI_CACHE_KEY = "chatvault_notion_ui_cache_v1";
+  const NOTION_UI_CACHE_KEY = productConfig?.storageKey ? productConfig.storageKey("notion_ui_cache.v1") : "gemini_export.notion_ui_cache.v1";
+  const NOTION_SELECTED_CONNECTION_ID_KEY = productConfig?.storageKey ? productConfig.storageKey("notion_selected_connection_id") : "gemini_export.notion_selected_connection_id";
+  const NOTION_SELECTED_DATA_SOURCES_KEY = productConfig?.storageKey ? productConfig.storageKey("notion_selected_data_sources") : "gemini_export.notion_selected_data_sources";
   let batchNotionConfig = {
     connections: [],
     dataSources: [],
@@ -2690,8 +2692,8 @@
       chrome.storage.local.get([
         NOTION_UI_CACHE_KEY,
         SUPABASE_SESSION_STORAGE_KEY,
-        "notion_selected_connection_id",
-        "notion_selected_data_sources"
+        NOTION_SELECTED_CONNECTION_ID_KEY,
+        NOTION_SELECTED_DATA_SOURCES_KEY
       ], resolve);
     });
   }
@@ -2718,8 +2720,8 @@
     batchNotionConfig = {
       connections,
       dataSources,
-      connectionId: String(cache.connectionId || stored.notion_selected_connection_id || ""),
-      dataSourceId: String(cache.dataSourceId || stored.notion_selected_data_sources?.[cache.connectionId] || ""),
+      connectionId: String(cache.connectionId || stored[NOTION_SELECTED_CONNECTION_ID_KEY] || ""),
+      dataSourceId: String(cache.dataSourceId || stored[NOTION_SELECTED_DATA_SOURCES_KEY]?.[cache.connectionId] || ""),
       databaseId: String(cache.databaseId || "")
     };
     return Boolean(connections.length);
@@ -2788,7 +2790,7 @@
 
   async function persistBatchNotionSelection() {
     const stored = await getBatchNotionStoredState();
-    const selectedSources = { ...(stored.notion_selected_data_sources || {}) };
+    const selectedSources = { ...(stored[NOTION_SELECTED_DATA_SOURCES_KEY] || {}) };
     if (batchNotionConfig.connectionId && batchNotionConfig.dataSourceId) {
       selectedSources[batchNotionConfig.connectionId] = batchNotionConfig.dataSourceId;
     }
@@ -2802,8 +2804,8 @@
       cache.updatedAt = Date.now();
     }
     await new Promise((resolve) => chrome.storage.local.set({
-      notion_selected_connection_id: batchNotionConfig.connectionId,
-      notion_selected_data_sources: selectedSources,
+      [NOTION_SELECTED_CONNECTION_ID_KEY]: batchNotionConfig.connectionId,
+      [NOTION_SELECTED_DATA_SOURCES_KEY]: selectedSources,
       ...(cache ? { [NOTION_UI_CACHE_KEY]: cache } : {})
     }, resolve));
   }
@@ -3683,7 +3685,7 @@
     const codeIndex = developerExport.extractCodeBlocks(processedMessages);
     const metadata = {
       platform,
-      title: item.title || "AI Chat Export",
+      title: item.title || "Gemini Export",
       sourceUrl,
       messageCount: processedMessages.length,
       redaction: redactionSummary,
@@ -3953,7 +3955,7 @@
           const platform = getChatPlatform(item) || getCurrentPlatformId();
           const sourceUrl = sanitizeSourceUrl(item.url || getBatchPlatformChatUrl(platform, getChatConversationId(item)));
           const snapshot = await globalThis.CHATVAULT_EXPORT.prepareNotionJob({
-            title: item.title || "AI Chat Export",
+            title: item.title || "Gemini Export",
             sourceUrl,
             messages,
             platform,
@@ -4121,7 +4123,7 @@
           const platform = getChatPlatform(item) || getCurrentPlatformId();
           const sourceUrl = sanitizeSourceUrl(item.url || getBatchPlatformChatUrl(platform, getChatConversationId(item)));
           const result = await coordinator.syncConversationToObsidian({
-            title: item.title || "AI Chat Export",
+            title: item.title || "Gemini Export",
             sourceUrl,
             messages,
             platform,
@@ -4610,7 +4612,7 @@
       id: conversationId,
       conversationId,
       platform,
-      title: exporter.getConversationTitle ? exporter.getConversationTitle() : "AI Chat Export",
+      title: exporter.getConversationTitle ? exporter.getConversationTitle() : "Gemini Export",
       url: window.location.href
     };
   }
@@ -4744,7 +4746,7 @@
       pad(date.getMinutes()),
       pad(date.getSeconds())
     ].join("-");
-    return sanitizeBatchPathSegment("AI Chat Export " + stamp, "AI Chat Export");
+    return sanitizeBatchPathSegment("Gemini Export " + stamp, "Gemini Export");
   }
 
   function splitBatchFilename(filename) {
@@ -4757,7 +4759,7 @@
 
   function getAvailableBatchDownloadPath(usedPaths, rootName, preferredName) {
     const parts = splitBatchFilename(preferredName);
-    const root = sanitizeBatchPathSegment(rootName, "AI Chat Export");
+    const root = sanitizeBatchPathSegment(rootName, "Gemini Export");
     for (let index = 0; index < 1000; index += 1) {
       const candidateName = index
         ? parts.base + "-" + (index + 1) + parts.ext
@@ -4879,7 +4881,7 @@
 
   // 购买跳转流程
   async function triggerCheckout() {
-    showPageToast(tx("content_open_subscribe_panel", "Opening AI Chat Export Pro plans...", "正在打开 AI Chat Export Pro 订阅方案..."));
+    showPageToast(tx("content_open_subscribe_panel", "Opening Gemini Export Pro plans...", "正在打开 Gemini Export Pro 订阅方案..."));
     openSubscribePanelFromPage();
   }
 
@@ -4900,9 +4902,9 @@
       return tx("content_upgrade_appendix", "Prompt Appendix requires Pro.", "附带 Prompt 提问附录功能需要 Pro 权限。");
     }
     if (message === "Hiding watermark requires Pro.") {
-      return tx("content_upgrade_watermark", "Hiding the AI Chat Export watermark requires Pro.", "隐藏 AI Chat Export 水印签名需要 Pro 权限。");
+      return tx("content_upgrade_watermark", "Hiding the Gemini Export watermark requires Pro.", "隐藏 Gemini Export 水印签名需要 Pro 权限。");
     }
-    return String(message || tx("content_upgrade_desc", "Upgrade to AI Chat Export Pro to remove quota limits.", "升级到 Pro 可解除额度限制。"));
+    return String(message || tx("content_upgrade_desc", "Upgrade to Gemini Export Pro to remove quota limits.", "升级到 Pro 可解除额度限制。"));
   }
 
   function openSubscribePanelFromPage() {
@@ -4917,7 +4919,7 @@
     subscribePanelRequestAt = now;
     chrome.runtime.sendMessage({ type: "CHATVAULT_OPEN_SUBSCRIBE", source: "extension_vip_modal_limit", planId: "yearly" }, (response) => {
       if (chrome.runtime.lastError || !response || response.ok === false) {
-        showPageToast(tx("content_open_subscribe_panel_failed", "Open the AI Chat Export toolbar popup to subscribe.", "请打开浏览器工具栏中的 AI Chat Export 弹窗完成订阅。"));
+        showPageToast(tx("content_open_subscribe_panel_failed", "Open the Gemini Export toolbar popup to subscribe.", "请打开浏览器工具栏中的 Gemini Export 弹窗完成订阅。"));
       }
     });
   }
@@ -5927,8 +5929,8 @@
           try {
             await new Promise((resolve) => chrome.storage.local.remove([
               NOTION_UI_CACHE_KEY,
-              "notion_selected_connection_id",
-              "notion_selected_data_sources"
+              NOTION_SELECTED_CONNECTION_ID_KEY,
+              NOTION_SELECTED_DATA_SOURCES_KEY
             ], resolve));
           } catch (error) {}
           batchNotionConfig = {

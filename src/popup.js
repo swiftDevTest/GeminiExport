@@ -17,10 +17,10 @@
   var productConfig = globalThis.CHATVAULT_PRODUCT_CONFIG || {};
   var storageKey = typeof productConfig.storageKey === "function"
     ? productConfig.storageKey
-    : function (name) { return "chatvault_exporter." + name; };
+    : function (name) { return "gemini_export." + name; };
   var productId = productConfig.productId || "chatvault_exporter";
   var productSlug = productConfig.productSlug || "chatvault-exporter";
-  var productName = productConfig.productName || "AI Chat Export";
+  var productName = productConfig.productName || "Gemini Export";
   var productPlatformLabels = productConfig.platformLabels || {};
   var supportedPlatforms = Array.isArray(productConfig.supportedPlatforms) && productConfig.supportedPlatforms.length
     ? productConfig.supportedPlatforms
@@ -133,7 +133,7 @@
 
   function applyPopupI18n() {
     document.documentElement.lang = getUILanguage().replace("_", "-");
-    document.title = t("extensionShortName", "AI Chat Export");
+    document.title = t("extensionShortName", "Gemini Export");
     if (globalThis.CHATVAULT_I18N && typeof globalThis.CHATVAULT_I18N.translateDOM === "function") {
       globalThis.CHATVAULT_I18N.translateDOM();
     }
@@ -143,7 +143,7 @@
 
     setText("#unsupported-overlay h3", "popup_unsupported_title", "Unsupported Page");
     setText("#unsupported-overlay p", "popup_unsupported_desc", "Use this extension on one of these AI chat pages:");
-    setText("#btn-open-chatgpt", "popup_open_chatgpt", "Open ChatGPT");
+    setText("#btn-open-chatgpt", "popup_open_chatgpt", "Open Gemini");
 
     setText(".platform-row-title span", "popup_current_session", "Current session");
     setText(".platform-row-title strong", "popup_auto_detect_platform", "Auto-detect platform");
@@ -196,7 +196,7 @@
     setSettingTexts("toggle-title", "export_opt_title", "Conversation Title", "popup_title_desc", "Show the conversation title at the top of the document");
     setSettingTexts("toggle-time", "export_opt_time", "Export Time", "popup_time_desc", "Insert an export timestamp in the document header");
     setSettingTexts("toggle-ai-only", "export_opt_ai_only", "AI Replies Only", "popup_ai_only_desc", "Filter user prompts and keep only AI replies");
-    setSettingTexts("toggle-watermark", "popup_watermark_title", "Hide AI Chat Export Watermark", "popup_watermark_desc", "Remove the AI Chat Export signature from the document end (Pro)");
+    setSettingTexts("toggle-watermark", "popup_watermark_title", "Hide Gemini Export Watermark", "popup_watermark_desc", "Remove the Gemini Export signature from the document end (Pro)");
     setSettingTexts("toggle-source-url", "export_opt_url", "Source URL", "popup_source_url_desc", "Append the original conversation URL to the exported document");
     setSettingTexts("toggle-platform-name", "export_opt_platform", "Platform Name", "popup_platform_name_desc", "Show the source platform in the document header");
     setSettingTexts("toggle-role-labels", "export_opt_role", "Role Labels", "popup_role_labels_desc", "Show User / Assistant labels before chat content");
@@ -223,7 +223,7 @@
     setTitle('.footer-tab[data-tab-id="settings"]', "popup_export_settings_title", "Export settings");
     setText('.footer-tab[data-tab-id="settings"] span', "tab_settings", "Settings");
 
-    setText(".subscribe-header h2", "billing_title", "Upgrade To AI Chat Export Pro");
+    setText(".subscribe-header h2", "billing_title", "Upgrade To Gemini Export Pro");
     setAriaLabel("#btn-close-subscribe", "btn_cancel", "Cancel");
     setText(".subscribe-subtitle", "billing_desc", "Unlock higher local export limits, polished themes, batch workflows, and PDF, Docs, MD and More output.");
     updateSubscribeLoginWarningText();
@@ -238,7 +238,7 @@
       subscribeSubmit.textContent = getCheckoutButtonLabel("yearly");
     }
     setText("#btn-subscribe-restore", "billing_btn_restore", "Restore purchase");
-    setText(".subscribe-footnote", "billing_footnote", "Exports are generated locally from the page you choose. Checkout opens on the AI Chat Export pricing page and is processed by a secure payment processor. AI Chat Export stores settings, sign-in email, and membership status only. Chat content is never saved.");
+    setText(".subscribe-footnote", "billing_footnote", "Exports are generated locally from the page you choose. Checkout opens on the Gemini Export pricing page and is processed by a secure payment processor. Gemini Export stores settings, sign-in email, and membership status only. Chat content is never saved.");
 
     setText(".confirm-modal-header h3", "popup_confirm_logout_title", "Log out");
     setText(".confirm-modal-message", "popup_confirm_logout_message", "Log out of the current account?");
@@ -992,8 +992,8 @@
     try {
       await new Promise((resolve) => chrome.storage.local.remove([
         NOTION_UI_CACHE_KEY,
-        "notion_selected_connection_id",
-        "notion_selected_data_sources"
+        NOTION_SELECTED_CONNECTION_ID_KEY,
+        NOTION_SELECTED_DATA_SOURCES_KEY
       ], resolve));
     } catch (err) {}
     updateNotionUI();
@@ -1211,7 +1211,7 @@
 
     // 1. 初始化平台及链接监听
     document.getElementById("btn-open-chatgpt").addEventListener("click", function () {
-      chrome.tabs.create({ url: "https://chatgpt.com/" });
+      chrome.tabs.create({ url: "https://gemini.google.com/" });
       window.close();
     });
 
@@ -1687,7 +1687,7 @@
 
   function getCheckoutErrorMessage(error) {
     if (isBackendSchemaCacheError(error)) {
-      return t("popup_checkout_service_syncing", "Checkout service is updating. Please reopen AI Chat Export and try again in a moment.");
+      return t("popup_checkout_service_syncing", "Checkout service is updating. Please reopen Gemini Export and try again in a moment.");
     }
     if (isCheckoutRateLimitedError(error)) {
       return t("popup_checkout_rate_limited", "Checkout is already being prepared. Please wait a moment and try again.");
@@ -2316,7 +2316,9 @@
     databaseId: "",
     workspaceName: ""
   };
-  const NOTION_UI_CACHE_KEY = "chatvault_notion_ui_cache_v1";
+  const NOTION_UI_CACHE_KEY = storageKey("notion_ui_cache.v1");
+  const NOTION_SELECTED_CONNECTION_ID_KEY = storageKey("notion_selected_connection_id");
+  const NOTION_SELECTED_DATA_SOURCES_KEY = storageKey("notion_selected_data_sources");
   let notionUiInitialized = false;
 
   function notionCacheUserId(stored) {
@@ -2395,8 +2397,8 @@
   function getStoredNotionSelection() {
     return new Promise((resolve) => {
       chrome.storage.local.get([
-        "notion_selected_connection_id",
-        "notion_selected_data_sources",
+        NOTION_SELECTED_CONNECTION_ID_KEY,
+        NOTION_SELECTED_DATA_SOURCES_KEY,
         supabaseSessionStorageKey,
         NOTION_UI_CACHE_KEY,
         "notion_token",
@@ -2427,9 +2429,9 @@
       return false;
     }
 
-    const selectedConnection = connections.find((item) => item.id === stored.notion_selected_connection_id) ||
+    const selectedConnection = connections.find((item) => item.id === stored[NOTION_SELECTED_CONNECTION_ID_KEY]) ||
       connections[0] || null;
-    const selectedSources = stored.notion_selected_data_sources || {};
+    const selectedSources = stored[NOTION_SELECTED_DATA_SOURCES_KEY] || {};
     const availableConnectionIds = new Set(connections.map((item) => item.id));
     const cachedDataSources = (notionConfig.dataSources || []).filter((item) => availableConnectionIds.has(item.connectionId));
     notionConfig.connections = connections;
@@ -2448,13 +2450,13 @@
 
   async function saveNotionSelection(storedInput) {
     const stored = storedInput || await getStoredNotionSelection();
-    const sources = { ...(stored.notion_selected_data_sources || {}) };
+    const sources = { ...(stored[NOTION_SELECTED_DATA_SOURCES_KEY] || {}) };
     if (notionConfig.connectionId && notionConfig.dataSourceId) {
       sources[notionConfig.connectionId] = notionConfig.dataSourceId;
     }
     await new Promise((resolve) => chrome.storage.local.set({
-      notion_selected_connection_id: notionConfig.connectionId,
-      notion_selected_data_sources: sources,
+      [NOTION_SELECTED_CONNECTION_ID_KEY]: notionConfig.connectionId,
+      [NOTION_SELECTED_DATA_SOURCES_KEY]: sources,
       [NOTION_UI_CACHE_KEY]: buildNotionUiCache(stored)
     }, resolve));
   }

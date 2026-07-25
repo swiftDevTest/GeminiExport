@@ -7,16 +7,19 @@
   const SUPABASE_CONFIG = globalThis.CHATVAULT_SUPABASE_CONFIG || {};
   const SUPABASE_URL = SUPABASE_CONFIG.url || "https://acgehhqcgreatcjcefub.supabase.co";
   const SUPABASE_PUBLISHABLE_KEY = SUPABASE_CONFIG.publishableKey || "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q";
-  const SESSION_KEY = (globalThis.CHATVAULT_PRODUCT_CONFIG?.storageKey || ((name) => `gemini_export.${name}`))("supabase_session.v1");
-  const MANUAL_CONFIG_KEY = "chatvault_notion_manual_session_v1";
+  const _storageKey = globalThis.CHATVAULT_PRODUCT_CONFIG?.storageKey || ((name) => `gemini_export.${name}`);
+  const SESSION_KEY = _storageKey("supabase_session.v1");
+  const MANUAL_CONFIG_KEY = _storageKey("notion_manual_session.v1");
   const DATABASE_NAME = "chatvault-notion-sync-v2";
   const DATABASE_VERSION = 1;
   const JOB_STORE = "jobs";
   const MAPPING_STORE = "mappings";
   const ALARM_NAME = "chatvault-notion-queue-pump";
   const RETRY_ALARM_NAME = "chatvault-notion-queue-retry";
-  const NOTIFICATION_LINKS_KEY = "chatvault_notion_notification_links_v1";
-  const PROPERTY_MAPS_KEY = "chatvault_notion_property_maps_v1";
+  const NOTIFICATION_LINKS_KEY = _storageKey("notion_notification_links.v1");
+  const PROPERTY_MAPS_KEY = _storageKey("notion_property_maps.v1");
+  const NOTION_SELECTED_CONNECTION_ID_KEY = _storageKey("notion_selected_connection_id");
+  const NOTION_SELECTED_DATA_SOURCES_KEY = _storageKey("notion_selected_data_sources");
   const MAX_JOB_BYTES = 64 * 1024 * 1024;
   const MAX_MEDIA_ITEMS = 50;
   const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
@@ -385,7 +388,7 @@
   async function getFreshSupabaseSession(signal) {
     const session = await storageGet("local", SESSION_KEY);
     if (!session || !session.access_token) {
-      throw createNotionError("ChatVault sign-in is required.", 401, "chatvault_auth_required");
+      throw createNotionError("Gemini Export sign-in is required.", 401, "chatvault_auth_required");
     }
     const expiresAt = Number(session.expires_at || 0);
     const needsRefresh = expiresAt && expiresAt - Math.floor(Date.now() / 1000) < 180 && session.refresh_token;
@@ -413,7 +416,7 @@
               return;
             }
             if (!response || !response.ok) {
-              const error = new Error((response && response.error) || "ChatVault session refresh failed.");
+              const error = new Error((response && response.error) || "Gemini Export session refresh failed.");
               error.status = (response && response.status) || 0;
               error.code = (response && response.code) || "chatvault_auth_refresh_failed";
               reject(error);
@@ -533,13 +536,13 @@
     Object.keys(propertyMaps).forEach((key) => {
       if (key.startsWith(`${connectionId}:`)) delete propertyMaps[key];
     });
-    const selectedSources = await storageGet("local", "notion_selected_data_sources") || {};
+    const selectedSources = await storageGet("local", NOTION_SELECTED_DATA_SOURCES_KEY) || {};
     delete selectedSources[connectionId];
-    const selectedConnection = await storageGet("local", "notion_selected_connection_id");
+    const selectedConnection = await storageGet("local", NOTION_SELECTED_CONNECTION_ID_KEY);
     await storageSet("local", {
       [PROPERTY_MAPS_KEY]: propertyMaps,
-      notion_selected_data_sources: selectedSources,
-      ...(selectedConnection === connectionId ? { notion_selected_connection_id: "" } : {})
+      [NOTION_SELECTED_DATA_SOURCES_KEY]: selectedSources,
+      ...(selectedConnection === connectionId ? { [NOTION_SELECTED_CONNECTION_ID_KEY]: "" } : {})
     });
   }
 
@@ -1583,7 +1586,7 @@
     if (!chrome.notifications) return;
     const notificationId = `chatvault-notion-${job.id}`;
     const message = job.status === "failed"
-      ? `Notion sync failed (${job.errorCode || "sync_error"}). Open ChatVault for details.`
+      ? `Notion sync failed (${job.errorCode || "sync_error"}). Open Gemini Export for details.`
       : job.status === "partial"
         ? "Notion sync completed with warnings."
         : "Notion sync completed.";
@@ -1597,7 +1600,7 @@
       await chrome.notifications.create(notificationId, {
         type: "basic",
         iconUrl: chrome.runtime.getURL("images/store-icon-128.png"),
-        title: "ChatVault → Notion",
+        title: "Gemini Export → Notion",
         message
       });
     } catch (error) {
@@ -1682,7 +1685,7 @@
 
   async function createChatVaultDatabase(connectionId, parentPageId, title) {
     const normalizedParent = String(parentPageId || "").trim();
-    const normalizedTitle = String(title || "ChatVault Conversations").trim().slice(0, 120) || "ChatVault Conversations";
+    const normalizedTitle = String(title || "Gemini Export Conversations").trim().slice(0, 120) || "Gemini Export Conversations";
     if (!/^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(normalizedParent)) {
       throw createNotionError("Select a valid Notion parent page.", 400, "invalid_parent_page");
     }

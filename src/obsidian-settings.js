@@ -6,7 +6,9 @@
   const VAULT_STORE = "vault";
   const JOB_STORE = "jobs";
   const HISTORY_STORE = "history";
-  const CONFIG_KEY = "chatvault_obsidian_config_v1";
+  const _productConfig = globalThis.CHATVAULT_PRODUCT_CONFIG || {};
+  const storageKey = typeof _productConfig.storageKey === "function" ? _productConfig.storageKey : (name) => `gemini_export.${name}`;
+  const CONFIG_KEY = storageKey("obsidian_config.v1");
   const i18n = globalThis.CHATVAULT_I18N;
   let databasePromise = null;
   let selectedHandle = null;
@@ -26,7 +28,7 @@
   }
 
   function applyStaticI18n() {
-    document.title = `${t("obsidian_settings_title", "Connect Obsidian Vault")} - AI Chat Export`;
+    document.title = `${t("obsidian_settings_title", "Connect Obsidian Vault")} - Gemini Export`;
     i18n?.translateDOM?.();
     document.getElementById("obsidian-notes-root")?.setAttribute("placeholder", t("obsidian_settings_notes_placeholder", "Choose a notes folder inside the Vault"));
     document.getElementById("obsidian-assets-root")?.setAttribute("placeholder", t("obsidian_settings_assets_placeholder", "Uses the notes folder when not set"));
