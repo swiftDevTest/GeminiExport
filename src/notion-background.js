@@ -16,7 +16,6 @@
   const MAPPING_STORE = "mappings";
   const ALARM_NAME = "chatvault-notion-queue-pump";
   const RETRY_ALARM_NAME = "chatvault-notion-queue-retry";
-  const NOTIFICATION_LINKS_KEY = _storageKey("notion_notification_links.v1");
   const PROPERTY_MAPS_KEY = _storageKey("notion_property_maps.v1");
   const NOTION_SELECTED_CONNECTION_ID_KEY = _storageKey("notion_selected_connection_id");
   const NOTION_SELECTED_DATA_SOURCES_KEY = _storageKey("notion_selected_data_sources");
@@ -1429,7 +1428,6 @@
     job.updatedAt = Date.now();
     await putRecord(JOB_STORE, job);
     broadcastJob(job);
-    await notifyJob(job);
     clearJobSnapshot(job);
     await putRecord(JOB_STORE, job);
   }
@@ -1447,7 +1445,6 @@
       await ensurePage(job, token);
       if (job.status === "succeeded") {
         broadcastJob(job);
-        await notifyJob(job);
         return;
       }
       const operations = Array.isArray(job.executionPlan) ? job.executionPlan : job.renderPlan.operations || [];
@@ -1507,7 +1504,6 @@
         job.errorCode = error.code || "notion_sync_failed";
         job.errorMessage = userFacingJobError(error);
         job.errorRequestId = String(error && error.requestId || "").slice(0, 120);
-        await notifyJob(job);
       }
       job.updatedAt = Date.now();
       await putRecord(JOB_STORE, job);
@@ -1584,33 +1580,6 @@
           void chrome.runtime.lastError;
         });
       } catch (error) {}
-    }
-  }
-
-  async function notifyJob(job) {
-    if (!chrome.notifications) return;
-    const notificationId = `chatvault-notion-${job.id}`;
-    const message = job.status === "failed"
-      ? `Notion sync failed (${job.errorCode || "sync_error"}). Open Gemini Export for details.`
-      : job.status === "partial"
-        ? "Notion sync completed with warnings."
-        : "Notion sync completed.";
-    const notionPageUrl = resolveNotionPageUrl(job.notionPageUrl, job.notionPageId);
-    if (notionPageUrl) {
-      const links = await storageGet("local", NOTIFICATION_LINKS_KEY) || {};
-      links[notificationId] = notionPageUrl;
-      await storageSet("local", { [NOTIFICATION_LINKS_KEY]: links });
-    }
-    try {
-      await chrome.notifications.create(notificationId, {
-        type: "basic",
-        iconUrl: chrome.runtime.getURL("images/store-icon-128.png"),
-        title: "Gemini Export → Notion",
-        message
-      });
-    } catch (error) {
-      // Desktop notifications are optional and must never turn a completed
-      // Notion job into an unhandled rejection or failed sync.
     }
   }
 
@@ -1908,18 +1877,7 @@
     chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
   }
   if (chrome.runtime.onStartup) chrome.runtime.onStartup.addListener(() => pump().catch(() => {}));
-  if (chrome.runtime.onInstalled) chrome.runtime.onInstalled.addListener(() => pump().catch(() => {}));
-  if (chrome.notifications && chrome.notifications.onClicked) {
-    chrome.notifications.onClicked.addListener(async (notificationId) => {
-      if (!notificationId.startsWith("chatvault-notion-")) return;
-      const links = await storageGet("local", NOTIFICATION_LINKS_KEY) || {};
-      const url = links[notificationId];
-      if (url) chrome.tabs.create({ url });
-      delete links[notificationId];
-      await storageSet("local", { [NOTIFICATION_LINKS_KEY]: links });
-      chrome.notifications.clear(notificationId);
-    });
-  }
+  if (chrome.runtime.onInstalled) chrome.runtime.onInstalled.addListener(() => pump().catch(() => {});
 
   globalThis.CHATVAULT_NOTION_BACKGROUND = {
     enqueueSnapshot,

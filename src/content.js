@@ -485,12 +485,31 @@
     return usageStore.getDailyUsage().catch(() => null);
   }
 
-  async function applyVerifiedServerUsage(usage) {
+  async function applyVerifiedServerUsage(usage, options = {}) {
     if (!usage || typeof usage !== "object") {
       return null;
     }
     if (usageStore && typeof usageStore.setDailyUsage === "function") {
-      dailyUsage = await usageStore.setDailyUsage(usage);
+      if (options.consume) {
+        // consume 路径：服务端返回的 exportedChats 已包含本次导出，
+        // 而本地 local 此前并未为本次登录导出累加（recordSuccessfulExportUsage
+        // 在 serverConsumed=true 时跳过 incrementDailyUsage）。
+        // 直接用 max(local, server) 合并会让本地持续落后于服务端，
+        // 导致匿名导出数被"吞掉"——用户在登录后可继续消耗完整 3 次额度
+        // 直到服务端计数追上本地匿名计数（即"1/3 可用"假象的根因）。
+        //
+        // 修复：先把服务端计数回退本次 amount（得到"本次导出前"的服务端计数），
+        // 与本地做 max 合并，再加上本次 amount。等价于：
+        //   local = max(local_anonymous, server_before_this_export) + amount
+        // 这样本地始终反映"匿名导出 + 登录导出"的真实总量。
+        const amount = Math.max(1, Number(options.amount || 1));
+        const serverCount = Math.max(0, Number(usage.exportedChats || usage.exported_chats || 0));
+        const adjustedUsage = { ...usage, exportedChats: Math.max(0, serverCount - amount) };
+        await usageStore.setDailyUsage(adjustedUsage);
+        dailyUsage = await usageStore.incrementDailyUsage(amount);
+      } else {
+        dailyUsage = await usageStore.setDailyUsage(usage);
+      }
     } else if (entitlements && typeof entitlements.normalizeDailyUsage === "function") {
       dailyUsage = entitlements.normalizeDailyUsage(usage);
     } else {
@@ -856,20 +875,23 @@
         currentUserProfile = syncedProfile;
         isProUser = entitlements.isPro(currentUserProfile);
       }
+      const serverAllowed = result?.ok !== false && result?.allowed !== false;
+      const serverConsumed = consume && serverAllowed;
       const serverUsage = result?.usage || result?.data?.usage || null;
       if (serverUsage) {
-        await applyVerifiedServerUsage(serverUsage);
+        // 仅在服务端真正扣减成功时才走 consume 路径（adjust + increment），
+        // 否则按普通 sync 处理（仅 max 合并），避免服务端拒绝扣减时本地误增。
+        await applyVerifiedServerUsage(serverUsage, { consume: serverConsumed, amount: count });
       }
       await cacheEntitlementState();
       invalidatePopupStateCache();
       notifyPopupEntitlementStateUpdated();
-      const serverAllowed = result?.ok !== false && result?.allowed !== false;
 
       return {
         ok: true,
         allowed: serverAllowed,
         serverVerified: true,
-        serverConsumed: consume && serverAllowed,
+        serverConsumed,
         profile: currentUserProfile,
         usage: dailyUsage,
         remaining: entitlements.getRemainingFreeExports(currentUserProfile, dailyUsage)
@@ -4466,6 +4488,8 @@
   // 复制纯文本
   async function writeTextToClipboard(value) {
     const text = String(value || "");
+    // 优先尝试通过 background 复制（service worker 有 clipboardWrite 权限），
+    // 失败则降级到 navigator.clipboard（content script 中有用户手势时可用）
     if (typeof chrome !== "undefined" && chrome.runtime && typeof chrome.runtime.sendMessage === "function") {
       try {
         const response = await chrome.runtime.sendMessage({
@@ -4475,14 +4499,8 @@
         if (response?.ok) {
           return;
         }
-        throw new Error(response?.error || "Extension clipboard write failed.");
       } catch (err) {
-        console.warn("Extension clipboard copy failed:", err);
-        throw new Error(tx(
-          "content_copy_failed_refresh",
-          "Copy failed. Refresh the page and try again.",
-          "复制失败，请刷新页面后重试。"
-        ));
+        // background 未处理该消息，降级到 navigator.clipboard
       }
     }
 
