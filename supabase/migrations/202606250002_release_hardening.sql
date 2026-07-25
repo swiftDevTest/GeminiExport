@@ -5,17 +5,13 @@ create table if not exists public.edge_rate_limits (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
 drop trigger if exists set_edge_rate_limits_updated_at on public.edge_rate_limits;
 create trigger set_edge_rate_limits_updated_at
 before update on public.edge_rate_limits
 for each row
 execute function public.set_updated_at();
-
 alter table public.edge_rate_limits enable row level security;
-
 revoke all on public.edge_rate_limits from anon, authenticated;
-
 drop policy if exists "edge_rate_limits_no_client_access" on public.edge_rate_limits;
 create policy "edge_rate_limits_no_client_access"
 on public.edge_rate_limits
@@ -24,7 +20,6 @@ for all
 to anon, authenticated
 using (false)
 with check (false);
-
 create or replace function public.consume_export_usage_daily(
   p_user_id uuid,
   p_product_slug text,
@@ -99,10 +94,8 @@ begin
   );
 end;
 $$;
-
 revoke all on function public.consume_export_usage_daily(uuid, text, date, integer, integer, integer) from public, anon, authenticated;
 grant execute on function public.consume_export_usage_daily(uuid, text, date, integer, integer, integer) to service_role;
-
 create or replace function public.try_consume_edge_rate_limit(
   p_bucket_key text,
   p_product_slug text,
@@ -141,6 +134,5 @@ begin
   return consumed;
 end;
 $$;
-
 revoke all on function public.try_consume_edge_rate_limit(text, text, integer, integer) from public, anon, authenticated;
 grant execute on function public.try_consume_edge_rate_limit(text, text, integer, integer) to service_role;

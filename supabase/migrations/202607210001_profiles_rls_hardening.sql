@@ -12,6 +12,8 @@ drop policy if exists "profiles_insert_own_free_only" on public.profiles;
 
 -- 3. 创建 restrictive 策略，显式拒绝客户端所有写操作
 --    restrictive policy 与 permissive policy 取交集，即使存在其他 permissive policy 也无法通过
+--    使用 drop if exists 保证幂等，兼容已被 20260716013901 部分应用的情况
+drop policy if exists "profiles_no_client_insert" on public.profiles;
 create policy "profiles_no_client_insert"
 on public.profiles
 as restrictive
@@ -19,6 +21,7 @@ for insert
 to anon, authenticated
 with check (false);
 
+drop policy if exists "profiles_no_client_update" on public.profiles;
 create policy "profiles_no_client_update"
 on public.profiles
 as restrictive
@@ -27,6 +30,7 @@ to anon, authenticated
 using (false)
 with check (false);
 
+drop policy if exists "profiles_no_client_delete" on public.profiles;
 create policy "profiles_no_client_delete"
 on public.profiles
 as restrictive
