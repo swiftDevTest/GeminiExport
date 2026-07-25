@@ -18,8 +18,8 @@
   var storageKey = typeof productConfig.storageKey === "function"
     ? productConfig.storageKey
     : function (name) { return "gemini_export." + name; };
-  var productId = productConfig.productId || "chatvault_exporter";
-  var productSlug = productConfig.productSlug || "chatvault-exporter";
+  var productId = productConfig.productId || "gemini_export";
+  var productSlug = productConfig.productSlug || "gemini-export";
   var productName = productConfig.productName || "Gemini Export";
   var productPlatformLabels = productConfig.platformLabels || {};
   var supportedPlatforms = Array.isArray(productConfig.supportedPlatforms) && productConfig.supportedPlatforms.length
