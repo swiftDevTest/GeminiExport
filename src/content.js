@@ -377,8 +377,14 @@
     const sessionEmail = session.user?.email || "";
     const sessionUserId = session.user?.id || "";
     if (!sessionEmail && !sessionUserId) return false;
-    return (!sessionEmail || cachedState.email === sessionEmail) &&
-      (!sessionUserId || cachedState.profile?.id === sessionUserId || !cachedState.profile?.id);
+    // SECURITY: Require strict identity match. Reject cache entries with empty
+    // identity to prevent impersonation via crafted cache (C3).
+    const cachedEmail = cachedState.email || cachedState.profile?.email || "";
+    const cachedUserId = cachedState.profile?.id || cachedState.sessionUser?.id || "";
+    if (!cachedEmail && !cachedUserId) return false;
+    const emailMatches = !sessionEmail || !cachedEmail || cachedEmail === sessionEmail;
+    const userIdMatches = !sessionUserId || !cachedUserId || cachedUserId === sessionUserId;
+    return emailMatches && userIdMatches;
   }
 
   async function getStoredAuthSessionSnapshot(sessionOverride) {

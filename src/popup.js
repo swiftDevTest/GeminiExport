@@ -490,7 +490,8 @@
       var pendingRequest = await storageGet(pendingSubscribeRequestKey);
       if (pendingRequest && typeof pendingRequest === "object") {
         var createdAt = Number(pendingRequest.at || 0);
-        if (!createdAt || Date.now() - createdAt < pendingSubscribeRequestMaxAgeMs) {
+        // Fix M5: require valid createdAt AND within max age (was inverted, allowing at=0 to always trigger).
+        if (createdAt > 0 && Date.now() - createdAt < pendingSubscribeRequestMaxAgeMs) {
           requested = true;
           planId = pendingRequest.planId || planId;
         }
@@ -514,7 +515,10 @@
       quotaInfo.textContent = t("popup_pro_quota_status", "Unlimited exports available");
       return;
     }
-    quotaInfo.textContent = t("popup_quota_remaining", "Today's remaining quota: $1 / 3 exports", remainingQuota);
+    // Fix M6: use actual daily limit from entitlements config instead of hardcoded "3".
+    var entitlements = globalThis.CHATVAULT_ENTITLEMENTS;
+    var dailyLimit = entitlements?.DEFAULT_FREE_LIMITS?.maxExportsPerDay || 3;
+    quotaInfo.textContent = t("popup_quota_remaining", "Today's remaining quota: $1 / $2 exports", remainingQuota, dailyLimit);
   }
 
   function responseHasAccountIdentity(response) {
@@ -616,8 +620,9 @@
       var cachedEmail = cached.email || cached.profile?.email || "";
       var cachedUserId = cached.profile?.id || cached.sessionUser?.id || "";
       var sessionMatchesCache = hasActiveAuthSession(storedSession) &&
-        (!cachedEmail || storedEmail === cachedEmail) &&
-        (!cachedUserId || storedUserId === cachedUserId);
+        cachedEmail && cachedUserId &&
+        storedEmail === cachedEmail &&
+        storedUserId === cachedUserId;
       if (!sessionMatchesCache) {
         await clearCachedEntitlementState();
         return false;
@@ -839,8 +844,14 @@
     var sessionEmail = session.user?.email || "";
     var sessionUserId = session.user?.id || "";
     if (!sessionEmail && !sessionUserId) return false;
-    return (!sessionEmail || cachedState.email === sessionEmail) &&
-      (!sessionUserId || cachedState.profile?.id === sessionUserId || !cachedState.profile?.id);
+    // SECURITY: Require strict identity match. Reject cache entries with empty
+    // identity to prevent impersonation via crafted cache (C3).
+    var cachedEmail = cachedState.email || cachedState.profile?.email || "";
+    var cachedUserId = cachedState.profile?.id || cachedState.sessionUser?.id || "";
+    if (!cachedEmail && !cachedUserId) return false;
+    var emailMatches = !sessionEmail || !cachedEmail || cachedEmail === sessionEmail;
+    var userIdMatches = !sessionUserId || !cachedUserId || cachedUserId === sessionUserId;
+    return emailMatches && userIdMatches;
   }
 
   async function getStoredAuthSessionSnapshot() {
