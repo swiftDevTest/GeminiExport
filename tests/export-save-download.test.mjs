@@ -16,6 +16,7 @@ globalThis.URL.revokeObjectURL = () => {};
 globalThis.chrome = {
   runtime: {
     lastError: null,
+    id: "test-extension-id",
     onMessage: {
       addListener(fn) { messageListeners.push(fn); },
       removeListener(fn) {
@@ -33,6 +34,8 @@ globalThis.chrome = {
         filename: message.filename
       });
       // 提供触发下载完成/取消的句柄，供测试用例调用
+      // 传入 sender 以模拟真实扩展环境（save.js 会校验 sender.id === chrome.runtime.id）
+      const trustedSender = { id: "test-extension-id" };
       resolveDownload = (overrides) => {
         messageListeners.forEach((fn) => fn({
           type: "CHATVAULT_DOWNLOAD_STATUS",
@@ -41,7 +44,7 @@ globalThis.chrome = {
           filename: message.filename,
           cancelled: false,
           ...overrides
-        }));
+        }, trustedSender));
       };
       triggerCancel = () => {
         messageListeners.forEach((fn) => fn({
@@ -49,7 +52,7 @@ globalThis.chrome = {
           downloadId: downloadId,
           state: "interrupted",
           cancelled: true
-        }));
+        }, trustedSender));
       };
     }
   }

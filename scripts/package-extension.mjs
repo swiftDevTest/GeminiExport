@@ -93,6 +93,55 @@ function prepareReleaseManifest() {
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 }
 
+// 校验 staging 目录中的 manifest.json 引用的所有文件均存在，避免打包缺失资源
+function assertManifestReferencesExist() {
+  const manifest = readJson(join(stagingRoot, "manifest.json"));
+  const missing = [];
+
+  function check(relativePath) {
+    // 跳过通配符路径（如 images/*.png、images/*）
+    if (typeof relativePath !== "string" || relativePath.includes("*")) return;
+    const target = join(stagingRoot, relativePath);
+    if (!existsSync(target)) {
+      missing.push(relativePath);
+    }
+  }
+
+  // icons
+  if (manifest.icons && typeof manifest.icons === "object") {
+    Object.values(manifest.icons).forEach(check);
+  }
+
+  // action.default_icon & action.default_popup
+  if (manifest.action) {
+    if (manifest.action.default_icon && typeof manifest.action.default_icon === "object") {
+      Object.values(manifest.action.default_icon).forEach(check);
+    }
+    if (typeof manifest.action.default_popup === "string") {
+      check(manifest.action.default_popup);
+    }
+  }
+
+  // background.service_worker
+  if (manifest.background && typeof manifest.background.service_worker === "string") {
+    check(manifest.background.service_worker);
+  }
+
+  // content_scripts[].js[]
+  (manifest.content_scripts || []).forEach((entry) => {
+    (entry.js || []).forEach(check);
+  });
+
+  // web_accessible_resources[].resources[]
+  (manifest.web_accessible_resources || []).forEach((entry) => {
+    (entry.resources || []).forEach(check);
+  });
+
+  if (missing.length > 0) {
+    throw new Error(`Manifest references missing files in package:\n${missing.join("\n")}`);
+  }
+}
+
 function createZip(version, name) {
   const zipPath = join(distRoot, `${name}-${version}.zip`);
   rmSync(zipPath, { force: true });
