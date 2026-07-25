@@ -352,10 +352,6 @@
   }
 
   function openSubscribePanel(planId) {
-    if (isProUser) {
-      showToast(t("popup_pro_already_active", "Pro is already active on this account."));
-      return;
-    }
     selectSubscribePlan(planId);
     if (typeof showSubscriptionPanel === "function") {
       showSubscriptionPanel();
@@ -1351,10 +1347,6 @@
     if (proCrown) {
       proCrown.onclick = function (e) {
         if (e) e.preventDefault();
-        if (isProUser) {
-          showToast(t("popup_pro_already_active", "Pro is already active on this account."));
-          return;
-        }
         showSubscriptionPanel();
       };
     }
@@ -1383,12 +1375,6 @@
       var checkedRadio = document.querySelector('input[name="subscribe-plan"]:checked');
       var submitBtn = document.getElementById("btn-subscribe-submit");
       if (!checkedRadio || !submitBtn) return;
-
-      if (isProUser) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = t("popup_pro_already_active", "Pro is already active on this account.");
-        return;
-      }
 
       submitBtn.disabled = false;
       var planVal = checkedRadio.value;
@@ -1434,10 +1420,6 @@
     if (subscribeSubmitBtn) {
       subscribeSubmitBtn.onclick = async function (e) {
         if (e) e.preventDefault();
-        if (isProUser) {
-          showToast(t("popup_pro_already_active", "Pro is already active on this account."));
-          return;
-        }
 
         var planId = getSelectedSubscribePlanId();
 
