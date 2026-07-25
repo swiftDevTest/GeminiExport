@@ -254,13 +254,37 @@ test("export entitlement verification falls back to local quota gates", () => {
   assert.match(verifySource, /if \(!localAccess\.allowed \|\| isProUser\)/);
   assert.match(verifySource, /Server entitlement verification failed; using local quota fallback/);
   assert.match(verifySource, /return localAccess;/);
-  assert.ok(performSource.indexOf("const localEntitlementPreflight = getLocalExportAccessResult(1)") < performSource.indexOf("renderExportProgress(formatForExport"));
-  assert.ok(performSource.indexOf("const entitlementIssue = getEntitlementIssue") < performSource.indexOf("renderExportProgress(formatForExport"));
-  assert.ok(performSource.indexOf("renderExportProgress(formatForExport") < performSource.indexOf("const entitlementPreflight = await verifySignedInExportAccess(1)"));
-  assert.ok(batchSource.indexOf("setBatchExportingUi(true)") < batchSource.indexOf("closeBatchModal();"));
-  assert.ok(batchSource.indexOf("updateBatchExportProgress({") < batchSource.indexOf("closeBatchModal();"));
-  assert.ok(batchSource.indexOf("closeBatchModal();") < batchSource.indexOf("await loadState({ localOnly: true, skipVerify: true })"));
-  assert.ok(batchSource.indexOf("if (!canUseBatchExportLocally())") < batchSource.indexOf("runInPageBatchExport("));
+
+  // 时序验证：先断言每个锚点确实存在（indexOf !== -1），再比较先后顺序，
+  // 避免 indexOf 返回 -1 时 -1 < N 仍为 true 的假阳性。
+  const anchors = {
+    localPreflight: performSource.indexOf("const localEntitlementPreflight = getLocalExportAccessResult(1)"),
+    entitlementIssue: performSource.indexOf("const entitlementIssue = getEntitlementIssue"),
+    renderProgress: performSource.indexOf("renderExportProgress(formatForExport"),
+    verifySignedIn: performSource.indexOf("const entitlementPreflight = await verifySignedInExportAccess(1)")
+  };
+  for (const [name, index] of Object.entries(anchors)) {
+    assert.notEqual(index, -1, `missing anchor in performExport source: ${name}`);
+  }
+  assert.ok(anchors.localPreflight < anchors.renderProgress, "localEntitlementPreflight must precede renderExportProgress");
+  assert.ok(anchors.entitlementIssue < anchors.renderProgress, "entitlementIssue must precede renderExportProgress");
+  assert.ok(anchors.renderProgress < anchors.verifySignedIn, "renderExportProgress must precede verifySignedInExportAccess");
+
+  const batchAnchors = {
+    setBatchExportingUi: batchSource.indexOf("setBatchExportingUi(true)"),
+    updateBatchExportProgress: batchSource.indexOf("updateBatchExportProgress({"),
+    closeBatchModal: batchSource.indexOf("closeBatchModal();"),
+    loadState: batchSource.indexOf("await loadState({ localOnly: true, skipVerify: true })"),
+    canUseBatchExportLocally: batchSource.indexOf("if (!canUseBatchExportLocally())"),
+    runInPageBatchExport: batchSource.indexOf("runInPageBatchExport(")
+  };
+  for (const [name, index] of Object.entries(batchAnchors)) {
+    assert.notEqual(index, -1, `missing anchor in batch source: ${name}`);
+  }
+  assert.ok(batchAnchors.setBatchExportingUi < batchAnchors.closeBatchModal, "setBatchExportingUi must precede closeBatchModal");
+  assert.ok(batchAnchors.updateBatchExportProgress < batchAnchors.closeBatchModal, "updateBatchExportProgress must precede closeBatchModal");
+  assert.ok(batchAnchors.closeBatchModal < batchAnchors.loadState, "closeBatchModal must precede loadState");
+  assert.ok(batchAnchors.canUseBatchExportLocally < batchAnchors.runInPageBatchExport, "canUseBatchExportLocally check must precede runInPageBatchExport");
 });
 
 test("popup export closes before long-running page export work", () => {

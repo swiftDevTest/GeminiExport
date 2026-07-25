@@ -131,7 +131,7 @@ async function persistPaddleCustomer(user: AuthUser, paddleCustomerId: string, e
 
   await supabaseRest("payment_customers?on_conflict=paddle_customer_id", {
     method: "POST",
-    prefer: "resolution=merge-duplicates",
+    prefer: "resolution=ignore-duplicates",
     body: {
       user_id: user.id,
       product_slug: PRODUCT_SLUG,
@@ -143,11 +143,15 @@ async function persistPaddleCustomer(user: AuthUser, paddleCustomerId: string, e
 }
 
 async function getOrCreatePaddleCustomerId(user: AuthUser, requestedEmail: unknown) {
+  // 安全策略：Paddle customer 查找仅使用已认证的 user.email，
+  // 不接受客户端传入的 customer_email 作为查找依据，防止冒领他人 customer。
+  // requestedEmail 仅在 user.email 为空且需创建新 customer 时作为联系邮箱使用。
   const email = normalizeEmail(user.email || requestedEmail);
   let paddleCustomerId = await findStoredPaddleCustomerId(user.id);
 
-  if (!paddleCustomerId && email) {
-    paddleCustomerId = await findPaddleCustomerIdByEmail(email);
+  // 仅当 user.email 存在时才按邮箱查找已有 customer（邮箱已通过 OAuth 校验）
+  if (!paddleCustomerId && user.email) {
+    paddleCustomerId = await findPaddleCustomerIdByEmail(normalizeEmail(user.email));
   }
   if (!paddleCustomerId && email) {
     paddleCustomerId = await createPaddleCustomer(user, email);
@@ -247,7 +251,12 @@ Deno.serve(async (request) => {
     const rawCheckoutUrl = normalizeCheckoutUrl(Deno.env.get("PADDLE_CHECKOUT_URL") || DEFAULT_CHECKOUT_URL);
     const successUrl = getConfiguredReturnUrl("CHECKOUT_SUCCESS_URL");
     const cancelUrl = getConfiguredReturnUrl("CHECKOUT_CANCEL_URL");
-    const idempotencyKey = `ai-chat-export:${user.id}:${plan.id}:${Date.now()}`;
+    // 幂等键基于 user_id + plan_id + 客户端传入的幂等 token（如有），
+    // 不含时间戳，确保网络超时重试时 Paddle 不会创建重复交易。
+    const clientToken = typeof body.idempotency_token === "string" && body.idempotency_token.trim()
+      ? body.idempotency_token.trim()
+      : "";
+    const idempotencyKey = `ai-chat-export:${user.id}:${plan.id}:${clientToken || "default"}`;
     const customer = await getOrCreatePaddleCustomerId(user, body.customer_email);
     const checkoutUrl = buildCheckoutUrl(rawCheckoutUrl, plan.id, source, customer);
 

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, posix } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, posix, join } from "node:path";
 
 function readText(path) {
   return readFileSync(new URL(path, import.meta.url), "utf8");
@@ -9,6 +10,11 @@ function readText(path) {
 
 function readJson(path) {
   return JSON.parse(readText(path));
+}
+
+function resolveDiskPath(relativePath) {
+  const here = dirname(fileURLToPath(import.meta.url));
+  return join(here, "..", relativePath);
 }
 
 function getRuntimeModuleRoots() {
@@ -82,4 +88,49 @@ test("manifest exposes only the registered platform extractor", () => {
 
   assert.notEqual(registryExtractors.length, 0, "expected registry.js to import a platform extractor");
   assert.deepEqual(getExposedExtractorResources(manifest), registryExtractors);
+});
+
+test("content_scripts include redaction module and content.js invokes redactMessages", () => {
+  const manifest = readJson("../manifest.json");
+  const contentScripts = (manifest.content_scripts || []).flatMap((entry) => entry.js || []);
+
+  // 验证 redaction.js 在 content_scripts 列表中
+  assert.ok(
+    contentScripts.includes("src/modules/redaction.js"),
+    "src/modules/redaction.js must be listed in content_scripts"
+  );
+
+  // 验证 content.js 源码中实际调用了 redaction.redactMessages
+  const contentSource = readText("../src/content.js");
+  assert.match(
+    contentSource,
+    /redaction\.redactMessages\s*\(/,
+    "content.js must call redaction.redactMessages in the export pipeline"
+  );
+});
+
+test("every content_scripts entry and web_accessible_resource exists on disk", () => {
+  const manifest = readJson("../manifest.json");
+
+  // 验证 content_scripts 中每个 js 文件存在
+  const contentScripts = (manifest.content_scripts || []).flatMap((entry) => entry.js || []);
+  for (const scriptPath of contentScripts) {
+    const diskPath = resolveDiskPath(scriptPath);
+    assert.ok(
+      existsSync(diskPath),
+      `content_scripts entry does not exist on disk: ${scriptPath}`
+    );
+  }
+
+  // 验证 web_accessible_resources 中每个非通配符资源存在
+  const resources = (manifest.web_accessible_resources || []).flatMap((entry) => entry.resources || []);
+  for (const resourcePath of resources) {
+    // 跳过通配符路径（如 images/*.png、images/*）
+    if (resourcePath.includes("*")) continue;
+    const diskPath = resolveDiskPath(resourcePath);
+    assert.ok(
+      existsSync(diskPath),
+      `web_accessible_resource does not exist on disk: ${resourcePath}`
+    );
+  }
 });

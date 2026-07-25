@@ -119,6 +119,7 @@ function main() {
     copyRecursive(src, join(stagingRoot, item));
   }
   prepareReleaseManifest();
+  assertManifestReferencesExist();
 
   const files = listPackagedFiles(stagingRoot);
   const forbiddenPrefixes = ["site/", "supabase/", "tests/", "node_modules/", "dist/", ".git/"];

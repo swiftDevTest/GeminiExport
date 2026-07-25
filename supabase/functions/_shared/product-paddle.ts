@@ -98,11 +98,13 @@ export async function verifyPaddleSignature(rawBody: string, signatureHeader: st
 
   const toleranceSeconds = Math.max(60, Number(Deno.env.get("PADDLE_WEBHOOK_TOLERANCE_SECONDS") || 300));
   const timestampSeconds = Number(timestamp);
-  if (Number.isFinite(timestampSeconds)) {
-    const age = Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds);
-    if (age > toleranceSeconds) {
-      return false;
-    }
+  // 非数字时间戳直接拒绝，防止攻击者用 ts=abc 绕过重放保护。
+  if (!Number.isFinite(timestampSeconds)) {
+    return false;
+  }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds);
+  if (age > toleranceSeconds) {
+    return false;
   }
 
   const key = await crypto.subtle.importKey(

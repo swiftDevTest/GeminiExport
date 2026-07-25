@@ -86,6 +86,16 @@
     return escapeHtml(value).replace(/`/g, "&#96;");
   }
 
+  // 校验 avatar URL scheme，防止 data:/javascript: 等非预期协议
+  function isSafeAvatarUrl(url) {
+    try {
+      var parsed = new URL(String(url || ""));
+      return parsed.protocol === "https:" || parsed.protocol === "http:";
+    } catch (error) {
+      return false;
+    }
+  }
+
   function setText(selector, key, defaultText) {
     var el = document.querySelector(selector);
     if (el) el.textContent = t(key, defaultText);
@@ -2167,7 +2177,7 @@
       loginBtn.setAttribute("title", accountLabel);
       loginBtn.setAttribute("aria-label", accountLabel);
       var avatarHtml = "";
-      if (avatarUrl) {
+      if (avatarUrl && isSafeAvatarUrl(avatarUrl)) {
         avatarHtml = '<img src="' + escapeAttribute(avatarUrl) + '" class="user-avatar" referrerpolicy="no-referrer" alt="Avatar">';
       } else {
         avatarHtml = '<svg class="user-avatar-placeholder" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">' +

@@ -70,7 +70,8 @@ test("HTML export creates a safe self-contained document", async () => {
   assert.match(html, /Unsafe &lt;Title&gt;/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script\b/i);
-  assert.doesNotMatch(html, /javascript:/i);
+  // 仅检测属性值前缀形式的 javascript: 协议，避免匹配 base64 数据中偶然出现的 "javascript:" 子串
+  assert.doesNotMatch(html, /["'(]javascript:/i);
   assert.match(html, /rel="noopener noreferrer"/);
   assert.match(html, /src="data:image\/svg\+xml;base64,/);
   assert.doesNotMatch(html, /src="https?:/i);

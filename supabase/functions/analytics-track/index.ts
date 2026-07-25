@@ -74,14 +74,22 @@ async function sha256Hex(value: string) {
 }
 
 function getClientAddress(request: Request) {
+  // 优先信任 CDN 注入的 cf-connecting-ip（Supabase Edge Functions 运行在 Deno Deploy，
+  // cf-connecting-ip 由 Cloudflare 注入，客户端无法伪造）。
+  // x-forwarded-for 仅取最后一个值（由可信代理追加），不取第一个（客户端可伪造）。
+  const cfConnectingIp = request.headers.get("cf-connecting-ip") || "";
+  if (cfConnectingIp.trim()) {
+    return cfConnectingIp.trim().slice(0, 80);
+  }
+  const xRealIp = request.headers.get("x-real-ip") || "";
+  if (xRealIp.trim()) {
+    return xRealIp.trim().slice(0, 80);
+  }
   const forwardedFor = request.headers.get("x-forwarded-for") || "";
-  const candidates = [
-    request.headers.get("cf-connecting-ip") || "",
-    request.headers.get("x-real-ip") || "",
-    forwardedFor.split(",")[0] || ""
-  ];
-  const address = candidates.map((value) => value.trim()).find(Boolean) || "unknown";
-  return address.slice(0, 80);
+  const segments = forwardedFor.split(",").map((value) => value.trim()).filter(Boolean);
+  // 最后一个 IP 由最接近服务端的可信代理追加，相对可信
+  const lastForwarded = segments.length > 0 ? segments[segments.length - 1] : "";
+  return (lastForwarded || "unknown").slice(0, 80);
 }
 
 async function getSourceFingerprint(request: Request) {

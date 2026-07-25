@@ -4,8 +4,9 @@
   if (globalThis.CHATVAULT_NOTION_BACKGROUND) return;
 
   const API_VERSION = "2026-03-11";
-  const SUPABASE_URL = "https://acgehhqcgreatcjcefub.supabase.co";
-  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q";
+  const SUPABASE_CONFIG = globalThis.CHATVAULT_SUPABASE_CONFIG || {};
+  const SUPABASE_URL = SUPABASE_CONFIG.url || "https://acgehhqcgreatcjcefub.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = SUPABASE_CONFIG.publishableKey || "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q";
   const SESSION_KEY = (globalThis.CHATVAULT_PRODUCT_CONFIG?.storageKey || ((name) => `gemini_export.${name}`))("supabase_session.v1");
   const MANUAL_CONFIG_KEY = "chatvault_notion_manual_session_v1";
   const DATABASE_NAME = "chatvault-notion-sync-v2";

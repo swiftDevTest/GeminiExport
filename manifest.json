@@ -26,7 +26,6 @@
     "downloads",
     "contextMenus",
     "identity",
-    "offscreen",
     "alarms",
     "notifications",
     "clipboardWrite"
@@ -55,7 +54,6 @@
       "resources": [
         "src/content.css",
         "images/*.png",
-        "src/offscreen.html",
         "src/obsidian-content.css",
         "src/obsidian-settings.html",
         "images/*",

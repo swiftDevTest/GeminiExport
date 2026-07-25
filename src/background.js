@@ -1,5 +1,10 @@
 
 try {
+  importScripts("supabase-config.js");
+} catch (e) {
+  console.error("[Background] Failed to import supabase-config.js:", e);
+}
+try {
   importScripts("notion-background.js");
 } catch (e) {
   console.error("[Background] Failed to import notion-background.js:", e);
@@ -40,8 +45,9 @@ try {
   const ANALYTICS_FLUSH_INTERVAL_MS = 15 * 1000;
   const ANALYTICS_BATCH_SIZE = 10;
   const ANALYTICS_MAX_QUEUE = 50;
-  const SUPABASE_URL = "https://acgehhqcgreatcjcefub.supabase.co";
-  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q";
+  const SUPABASE_CONFIG = globalThis.CHATVAULT_SUPABASE_CONFIG || {};
+  const SUPABASE_URL = SUPABASE_CONFIG.url || "https://acgehhqcgreatcjcefub.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = SUPABASE_CONFIG.publishableKey || "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q";
   const SUPABASE_REFRESH_RESULT_TTL_MS = 30 * 1000;
   const ANALYTICS_ALLOWED_EVENTS = new Set([
     "auth_success",

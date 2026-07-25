@@ -239,10 +239,9 @@ function main() {
       console.warn("Warning: Source directory not found: " + srcPath);
       continue;
     }
-    if (item.src === "src/modules/export") {
-      rmSync(destPath, { recursive: true, force: true });
-      ensureDir(destPath);
-    }
+    // 同步前清空目标目录，避免源端删除文件后目标端残留过期内容
+    rmSync(destPath, { recursive: true, force: true });
+    ensureDir(destPath);
     copyRecursive(srcPath, destPath);
     console.log("Synced directory: " + item.dest);
   }

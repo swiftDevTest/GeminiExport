@@ -20,12 +20,11 @@ function bytesToHex(bytes: ArrayBuffer) {
 }
 
 function safeEqual(a: string, b: string) {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let result = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    result |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  // 常量时间比较：不因长度不等提前返回，避免时序侧信道泄漏签名长度。
+  const maxLen = Math.max(a.length, b.length);
+  let result = a.length ^ b.length;
+  for (let index = 0; index < maxLen; index += 1) {
+    result |= (a.charCodeAt(index) || 0) ^ (b.charCodeAt(index) || 0);
   }
   return result === 0;
 }
@@ -46,13 +45,15 @@ export async function verifyPaddleSignature(rawBody: string, signatureHeader: st
     return false;
   }
 
-  const toleranceSeconds = Number(Deno.env.get("PADDLE_WEBHOOK_TOLERANCE_SECONDS") || 300);
+  const toleranceSeconds = Math.max(60, Number(Deno.env.get("PADDLE_WEBHOOK_TOLERANCE_SECONDS") || 300));
   const timestampSeconds = Number(timestamp);
-  if (Number.isFinite(timestampSeconds) && toleranceSeconds > 0) {
-    const age = Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds);
-    if (age > toleranceSeconds) {
-      return false;
-    }
+  // 非数字时间戳直接拒绝，防止攻击者用 ts=abc 绕过重放保护。
+  if (!Number.isFinite(timestampSeconds)) {
+    return false;
+  }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds);
+  if (age > toleranceSeconds) {
+    return false;
   }
 
   const key = await crypto.subtle.importKey(
