@@ -1877,7 +1877,7 @@
     chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
   }
   if (chrome.runtime.onStartup) chrome.runtime.onStartup.addListener(() => pump().catch(() => {}));
-  if (chrome.runtime.onInstalled) chrome.runtime.onInstalled.addListener(() => pump().catch(() => {});
+  if (chrome.runtime.onInstalled) chrome.runtime.onInstalled.addListener(() => pump().catch(() => {}));
 
   globalThis.CHATVAULT_NOTION_BACKGROUND = {
     enqueueSnapshot,
