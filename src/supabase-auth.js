@@ -8,11 +8,11 @@
   const SESSION_KEY = storageKey("supabase_session.v1");
   const SESSION_MUTATION_EPOCH_KEY = storageKey("supabase_session_epoch.v1");
   const ENTITLEMENT_STATE_CACHE_KEY = storageKey("entitlement_state.v1");
-  // access_token 默认有效期 1 小时，提前 1 小时刷新：
-  // 用户单次使用基本不触发刷新，跨会话使用也能无感续期。
-  const REFRESH_MARGIN_SECONDS = 3600;
+  // Supabase access_token 默认有效期约 1 小时。仅在到期前 5 分钟刷新，
+  // 避免新 session 刚写入就立刻轮换 refresh_token。
+  const REFRESH_MARGIN_SECONDS = 300;
   let refreshSessionPromise = null;
-  let refreshSessionPromiseToken = "";
+  let refreshSessionPromiseKey = "";
   let sessionGeneration = 0;
 
   if (!api || !config) {
@@ -56,7 +56,7 @@
     });
   }
 
-  function storageSet(key, value) {
+  function storageSetValues(values) {
     return new Promise((resolve) => {
       const storage = getChromeLocalStorage();
 
@@ -66,11 +66,15 @@
       }
 
       try {
-        storage.set({ [key]: value }, resolve);
+        storage.set(values, resolve);
       } catch (error) {
         resolve();
       }
     });
+  }
+
+  function storageSet(key, value) {
+    return storageSetValues({ [key]: value });
   }
 
   function storageRemove(key) {
@@ -312,6 +316,32 @@
     return session;
   }
 
+  async function storeSessionIfCurrent(session, expectedRefreshToken, operation) {
+    if (!session || !await isSessionOperationCurrent(operation)) {
+      return null;
+    }
+
+    const storedSession = await getStoredSession();
+    if (!await isSessionOperationCurrent(operation)) {
+      return null;
+    }
+    if (!storedSession) {
+      return null;
+    }
+
+    const storedRefreshToken = storedSession.refresh_token || "";
+    const candidateRefreshToken = session.refresh_token || "";
+    if (
+      storedRefreshToken &&
+      storedRefreshToken !== expectedRefreshToken &&
+      storedRefreshToken !== candidateRefreshToken
+    ) {
+      return storedSession;
+    }
+
+    return storeSession(session, operation);
+  }
+
   async function getStoredSession() {
     return storageGet(SESSION_KEY);
   }
@@ -319,9 +349,11 @@
   async function clearSession() {
     sessionGeneration += 1;
     refreshSessionPromise = null;
-    refreshSessionPromiseToken = "";
-    await storageSet(SESSION_MUTATION_EPOCH_KEY, createSessionMutationEpoch());
-    await storageSet(SESSION_KEY, null);
+    refreshSessionPromiseKey = "";
+    await storageSetValues({
+      [SESSION_MUTATION_EPOCH_KEY]: createSessionMutationEpoch(),
+      [SESSION_KEY]: null
+    });
   }
 
   function refreshSessionThroughBackground(refreshToken) {
@@ -332,7 +364,9 @@
           !chrome.runtime ||
           typeof chrome.runtime.sendMessage !== "function"
         ) {
-          resolve(null);
+          const unavailableError = new Error("Supabase refresh service is unavailable.");
+          unavailableError.code = "auth_refresh_unavailable";
+          reject(unavailableError);
           return;
         }
 
@@ -378,6 +412,11 @@
       return null;
     }
 
+    const sessionOperation = options.sessionOperation || await createSessionOperation();
+    if (!await isSessionOperationCurrent(sessionOperation)) {
+      return null;
+    }
+
     const minTtlSeconds = Number.isFinite(Number(options.minTtlSeconds))
       ? Number(options.minTtlSeconds)
       : REFRESH_MARGIN_SECONDS;
@@ -387,22 +426,35 @@
     }
 
     const refreshToken = session.refresh_token;
-    if (!refreshSessionPromise || refreshSessionPromiseToken !== refreshToken) {
-      refreshSessionPromiseToken = refreshToken;
+    const promiseKey = `${sessionOperation.generation}:${sessionOperation.mutationEpoch}:${refreshToken}`;
+    if (!refreshSessionPromise || refreshSessionPromiseKey !== promiseKey) {
+      refreshSessionPromiseKey = promiseKey;
       refreshSessionPromise = (async () => {
-        const refreshed = await refreshSessionThroughBackground(refreshToken)
-          || await api.request("/auth/v1/token?grant_type=refresh_token", {
-            body: {
-              refresh_token: refreshToken
-            },
-            method: "POST"
-          });
-
-        return storeSession(normalizeSession(session, refreshed));
+        try {
+          const refreshed = await refreshSessionThroughBackground(refreshToken);
+          if (!refreshed) {
+            throw new Error("Supabase refresh service returned no session.");
+          }
+          return storeSessionIfCurrent(
+            normalizeSession(session, refreshed),
+            refreshToken,
+            sessionOperation
+          );
+        } catch (error) {
+          const storedSession = await getStoredSession();
+          if (
+            await isSessionOperationCurrent(sessionOperation) &&
+            storedSession?.refresh_token &&
+            storedSession.refresh_token !== refreshToken
+          ) {
+            return storedSession;
+          }
+          throw error;
+        }
       })().finally(() => {
-        if (refreshSessionPromiseToken === refreshToken) {
+        if (refreshSessionPromiseKey === promiseKey) {
           refreshSessionPromise = null;
-          refreshSessionPromiseToken = "";
+          refreshSessionPromiseKey = "";
         }
       });
     }
@@ -422,7 +474,12 @@
     // fragments on those pages must never replace the extension session.
     cleanAuthHash();
 
+    const sessionOperation = await createSessionOperation();
     let session = await getStoredSession();
+
+    if (!await isSessionOperationCurrent(sessionOperation)) {
+      return null;
+    }
 
     if (!session) {
       return null;
@@ -436,10 +493,14 @@
     try {
       session = await refreshSession(session, {
         forceRefresh: Boolean(options.forceRefresh),
-        minTtlSeconds: options.minTtlSeconds
+        minTtlSeconds: options.minTtlSeconds,
+        sessionOperation
       });
 
       if (!session) {
+        if (!await isSessionOperationCurrent(sessionOperation)) {
+          return null;
+        }
         if (canReturnStoredSession()) {
           return originalSession;
         }
@@ -447,7 +508,7 @@
       }
 
       if (options.skipUserRefresh && session.user?.id) {
-        return await storeSession(session);
+        return await storeSessionIfCurrent(session, session.refresh_token || originalSession.refresh_token, sessionOperation);
       }
 
       try {
@@ -456,7 +517,7 @@
           ...session,
           user
         };
-        return await storeSession(sessionWithUser);
+        return await storeSessionIfCurrent(sessionWithUser, session.refresh_token, sessionOperation);
       } catch (userError) {
         if (!isLikelyAuthError(userError)) {
           throw userError;
@@ -464,19 +525,35 @@
 
         const refreshedSession = await refreshSession(session, {
           forceRefresh: true,
-          minTtlSeconds: 0
+          minTtlSeconds: 0,
+          sessionOperation
         });
+        if (!refreshedSession) {
+          return null;
+        }
         const user = await getUser(refreshedSession.access_token);
         const sessionWithUser = {
           ...refreshedSession,
           user
         };
-        return await storeSession(sessionWithUser);
+        return await storeSessionIfCurrent(sessionWithUser, refreshedSession.refresh_token, sessionOperation);
       }
     } catch (error) {
+      if (!await isSessionOperationCurrent(sessionOperation)) {
+        return null;
+      }
       // 认证错误（401/403/token expired）不应返回 stale session
       // 只有网络错误才允许降级使用本地缓存
       if (isLikelyAuthError(error)) {
+        const storedSession = await getStoredSession();
+        const failedRefreshToken = session?.refresh_token || originalSession?.refresh_token || "";
+        if (
+          storedSession?.refresh_token &&
+          failedRefreshToken &&
+          storedSession.refresh_token !== failedRefreshToken
+        ) {
+          return storedSession;
+        }
         await clearSession();
         try {
           await globalThis.CHATVAULT_ENTITLEMENTS?.clearCachedState?.();
@@ -496,7 +573,7 @@
     }
   }
 
-  async function signInWithIdToken(idToken, accessToken, nonce) {
+  async function signInWithIdToken(idToken, accessToken, nonce, operation) {
     try {
       const refreshed = await api.request("/auth/v1/token?grant_type=id_token", {
         body: {
@@ -509,7 +586,7 @@
       });
 
       const session = normalizeSession(null, refreshed);
-      return await storeSession(session);
+      return await storeSession(session, operation);
     } catch (error) {
       throw error;
     }
@@ -560,9 +637,10 @@
 
         try {
           setAuthLoading(true, "Signing In To Gemini Export...");
+          const sessionOperation = await createSessionOperation();
           let session = response.session
-            ? await storeSession(normalizeSession(null, response.session))
-            : await signInWithIdToken(response.idToken, response.accessToken, response.nonce);
+            ? await storeSession(normalizeSession(null, response.session), sessionOperation)
+            : await signInWithIdToken(response.idToken, response.accessToken, response.nonce, sessionOperation);
           if (!session) {
             setAuthLoading(false);
             resolve(null);
@@ -632,7 +710,7 @@
     // 最后才发起网络 logout
     if (session && session.access_token) {
       try {
-        await api.request("/auth/v1/logout", {
+        await api.request("/auth/v1/logout?scope=local", {
           accessToken: session.access_token,
           method: "POST"
         });
