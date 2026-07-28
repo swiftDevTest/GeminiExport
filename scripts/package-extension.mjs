@@ -18,7 +18,16 @@ const includePaths = [
 ];
 
 const excludedNames = new Set([
-  ".DS_Store"
+  ".DS_Store",
+  // 已废弃的图片资源（项目记忆硬约束）：即使被误重新加入 images/ 也不打包进 Web Store zip
+  "chatvault-exporter-logo-1024.png",
+  "chatvault-exporter-logo.svg",
+  "platform-chatgpt.png",
+  "platform-claude.svg",
+  // subscribe.* 属于远端 Website 项目页面，扩展代码零引用，不应打包进扩展包
+  "subscribe.html",
+  "subscribe.js",
+  "subscribe.css"
 ]);
 
 // 文件名后缀黑名单：临时文件、日志、备份、IDE 配置等不应打包进 Web Store zip
@@ -59,7 +68,8 @@ function copyRecursive(src, dest) {
   const stats = statSync(src);
   if (stats.isDirectory()) {
     ensureDir(dest);
-    for (const entry of readdirSync(src)) {
+    // 排序后遍历，保证打包文件顺序确定性（便于 CI 产物比对）
+    for (const entry of readdirSync(src).sort()) {
       copyRecursive(join(src, entry), join(dest, entry));
     }
     return;
@@ -74,7 +84,7 @@ function copyRecursive(src, dest) {
 }
 
 function listPackagedFiles(dir, root = dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+  return readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap((entry) => {
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) {
       return listPackagedFiles(fullPath, root);
@@ -145,7 +155,8 @@ function assertManifestReferencesExist() {
 function createZip(version, name) {
   const zipPath = join(distRoot, `${name}-${version}.zip`);
   rmSync(zipPath, { force: true });
-  const result = spawnSync("zip", ["-qr", zipPath, "."], {
+  // -X：剥离 extra fields（mtime/uid/gid 等），保证字节级可复现产物
+  const result = spawnSync("zip", ["-qrX", zipPath, "."], {
     cwd: stagingRoot,
     encoding: "utf8"
   });

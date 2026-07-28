@@ -2598,7 +2598,7 @@
           <!-- 状态徽章，默认隐藏 -->
           <div class="cv-batch-item-row-status">
             <button type="button" class="cv-batch-row-open" id="cv-batch-open-${realIndex}" hidden>${tx("content_open", "Open", "打开")}</button>
-            <span class="cv-batch-badge waiting" id="cv-batch-badge-${realIndex}">Waiting</span>
+            <span class="cv-batch-badge waiting" id="cv-batch-badge-${realIndex}">${tx("batch_status_waiting", "Waiting", "等待中")}</span>
           </div>
         </div>
       `;
@@ -3232,7 +3232,7 @@
       batchObsidianBatchId = "";
       shadowRoot?.querySelectorAll(".cv-batch-badge").forEach((badge) => {
         badge.className = "cv-batch-badge waiting";
-        badge.textContent = "Waiting";
+        badge.textContent = tx("batch_status_waiting", "Waiting", "等待中");
       });
       shadowRoot?.querySelectorAll(".cv-batch-row-open").forEach((button) => {
         button.hidden = true;
@@ -3901,6 +3901,27 @@
         requiresOriginalPlatformFetch: true
       }
     });
+
+    // 本地敏感信息脱敏（按 Technical_Design 9.10 顺序：transform → privacy proof → redaction → build）
+    // 与单条导出路径保持一致：仅在 redaction 模块可用且用户开启 redaction_enabled 时执行，
+    // 失败时降级为不脱敏，不阻断批量导出。
+    if (redaction && typeof redaction.redactMessages === "function" && settings.redaction_enabled) {
+      try {
+        const redactionResult = redaction.redactMessages(transformed, {
+          redaction_enabled: true,
+          redactCodeBlocks: settings.redact_code_blocks !== false,
+          customRules: isProUser && Array.isArray(settings.custom_redaction_rules)
+            ? settings.custom_redaction_rules
+            : null
+        });
+        if (redactionResult && Array.isArray(redactionResult.messages)) {
+          processedMessages = redactionResult.messages;
+          redactionSummary = redactionResult.summary || redactionSummary;
+        }
+      } catch (redactionError) {
+        console.warn("Redaction failed; exporting without redaction.", redactionError);
+      }
+    }
 
     const codeIndex = developerExport.extractCodeBlocks(processedMessages);
     const metadata = {
@@ -4657,7 +4678,7 @@
         const badge = row.querySelector(".cv-batch-badge");
         if (badge) {
           badge.className = "cv-batch-badge loading";
-          badge.textContent = "Loading page";
+          badge.textContent = tx("batch_status_loading_page", "Loading page", "正在加载页面");
         }
       }
     }
@@ -4674,7 +4695,7 @@
         const badge = row.querySelector(".cv-batch-badge");
         if (badge) {
           badge.className = "cv-batch-badge " + displayStatus;
-          badge.textContent = (displayStatus === "scraping") ? "Scraping content" : "Rendering document";
+          badge.textContent = (displayStatus === "scraping") ? tx("batch_status_scraping", "Scraping content", "正在抓取内容") : tx("batch_status_rendering", "Rendering document", "正在渲染文档");
         }
         
       }
@@ -4692,7 +4713,7 @@
         const badge = row.querySelector(".cv-batch-badge");
         if (badge) {
           badge.className = "cv-batch-badge completed";
-          badge.textContent = "Completed";
+          badge.textContent = tx("batch_status_completed", "Completed", "已完成");
         }
       }
     }
@@ -4709,8 +4730,8 @@
         const badge = row.querySelector(".cv-batch-badge");
         if (badge) {
           badge.className = "cv-batch-badge failed";
-          badge.textContent = "Failed";
-          badge.setAttribute("title", message.error || "Export failed");
+          badge.textContent = tx("batch_status_failed", "Failed", "失败");
+          badge.setAttribute("title", message.error || tx("batch_export_failed_tooltip", "Export failed", "导出失败"));
         }
       }
     }
@@ -4759,22 +4780,8 @@
   // 复制纯文本
   async function writeTextToClipboard(value) {
     const text = String(value || "");
-    // 优先尝试通过 background 复制（service worker 有 clipboardWrite 权限），
-    // 失败则降级到 navigator.clipboard（content script 中有用户手势时可用）
-    if (typeof chrome !== "undefined" && chrome.runtime && typeof chrome.runtime.sendMessage === "function") {
-      try {
-        const response = await chrome.runtime.sendMessage({
-          type: "CHATVAULT_COPY_TEXT",
-          text
-        });
-        if (response?.ok) {
-          return;
-        }
-      } catch (err) {
-        // background 未处理该消息，降级到 navigator.clipboard
-      }
-    }
-
+    // 在 content script 中有用户手势时 navigator.clipboard 可直接使用，
+    // 不需要 background 中转，也不需要 clipboardWrite 权限。
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
         await navigator.clipboard.writeText(text);
@@ -6390,7 +6397,7 @@
     }
     const cancelBtn = shadowRoot.getElementById("cancel-export-btn");
     if (cancelBtn) {
-      cancelBtn.textContent = "Cancel";
+      cancelBtn.textContent = tx("btn_cancel", "Cancel", "取消");
     }
   }
 

@@ -68,6 +68,15 @@
     return formatDefault(defaultText, args);
   }
 
+  // tx: 双语回退包装。中文 UI 返回 chineseText，其他语言返回 englishText。
+  // 若 messages.json 中有对应 key 的翻译，则优先使用翻译后的文本。
+  function tx(key, englishText, chineseText) {
+    var args = Array.prototype.slice.call(arguments, 3);
+    var lang = getLanguage();
+    var defaultText = /^zh(?:_|-|$)/i.test(lang) ? chineseText : englishText;
+    return t.apply(null, [key, defaultText].concat(args));
+  }
+
   function escapeHtml(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
@@ -2536,7 +2545,7 @@
       } else {
         const option = document.createElement("option");
         option.value = "";
-        option.textContent = `拉取失败 (${error && error.message ? error.message : "unknown error"})`;
+        option.textContent = tx("notion_fetch_failed", `Fetch failed (${error && error.message ? error.message : "unknown error"})`, `拉取失败 (${error && error.message ? error.message : "unknown error"})`);
         dbSelect.replaceChildren(option);
       }
       return false;
@@ -2607,14 +2616,14 @@
 
   function notionStatusLabel(status) {
     return {
-      held: "准备同步",
-      pending: "等待同步",
-      running: "正在同步",
-      retry_wait: "等待重试",
-      succeeded: "同步成功",
-      partial: "完成但有降级",
-      failed: "同步失败",
-      cancelled: "已取消"
+      held: tx("notion_status_held", "Ready to sync", "准备同步"),
+      pending: tx("notion_status_pending", "Waiting to sync", "等待同步"),
+      running: tx("notion_status_running", "Syncing", "正在同步"),
+      retry_wait: tx("notion_status_retry_wait", "Waiting to retry", "等待重试"),
+      succeeded: tx("notion_status_succeeded", "Sync succeeded", "同步成功"),
+      partial: tx("notion_status_partial", "Completed with degradations", "完成但有降级"),
+      failed: tx("notion_status_failed", "Sync failed", "同步失败"),
+      cancelled: tx("notion_status_cancelled", "Cancelled", "已取消")
     }[status] || status;
   }
 
@@ -2652,7 +2661,7 @@
     if (["held", "pending", "running", "retry_wait"].includes(job.status)) {
       const cancel = document.createElement("button");
       cancel.className = "notion-save-btn";
-      cancel.textContent = "取消任务";
+      cancel.textContent = tx("notion_cancel_task", "Cancel task", "取消任务");
       cancel.onclick = async () => {
         const response = await notionBackgroundMessage({ type: "CHATVAULT_NOTION_CANCEL_JOB", jobId: job.id });
         renderNotionJob(response.job);
@@ -2662,7 +2671,7 @@
     if (job.status === "failed") {
       const retry = document.createElement("button");
       retry.className = "notion-save-btn";
-      retry.textContent = "重试";
+      retry.textContent = tx("notion_retry_task", "Retry", "重试");
       retry.onclick = async () => {
         const response = await notionBackgroundMessage({ type: "CHATVAULT_NOTION_RETRY_JOB", jobId: job.id });
         renderNotionJob(response.job);
@@ -2683,7 +2692,7 @@
     if (job.notionPageUrl) {
       const open = document.createElement("button");
       open.className = "notion-save-btn";
-      open.textContent = "打开 Notion";
+      open.textContent = tx("notion_open_page", "Open Notion", "打开 Notion");
       open.style.marginLeft = "5px";
       open.onclick = () => chrome.tabs.create({ url: job.notionPageUrl });
       actions.appendChild(open);
@@ -2705,7 +2714,7 @@
     if (await blockExportIfFreeQuotaExhausted()) return;
 
     if (!notionConfig.connectionId || !notionConfig.dataSourceId) {
-      showToast("请先选择一个 Notion Database。");
+      showToast(tx("notion_select_database_first", "Please select a Notion Database first.", "请先选择一个 Notion Database。"));
       return;
     }
 
@@ -2737,7 +2746,7 @@
       if (response && response.ok) {
         window.close();
       } else {
-        showToast("同步请求发送失败，请确认页面已刷新并且就绪。");
+        showToast(tx("notion_sync_request_failed", "Failed to send sync request. Make sure the page is refreshed and ready.", "同步请求发送失败，请确认页面已刷新并且就绪。"));
       }
     });
   }
