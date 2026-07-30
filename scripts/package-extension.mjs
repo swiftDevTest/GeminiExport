@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -8,6 +8,7 @@ const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "..");
 const distRoot = join(repoRoot, "dist");
 const stagingRoot = join(distRoot, "extension");
+const REPRODUCIBLE_MTIME = new Date("2000-01-01T00:00:00.000Z");
 
 const includePaths = [
   "_locales",
@@ -152,13 +153,23 @@ function assertManifestReferencesExist() {
   }
 }
 
-function createZip(version, name) {
+function normalizePackagedTimestamps(files) {
+  files.forEach((file) => {
+    utimesSync(join(stagingRoot, file), REPRODUCIBLE_MTIME, REPRODUCIBLE_MTIME);
+  });
+}
+
+function createZip(version, name, files) {
   const zipPath = join(distRoot, `${name}-${version}.zip`);
   rmSync(zipPath, { force: true });
-  // -X：剥离 extra fields（mtime/uid/gid 等），保证字节级可复现产物
-  const result = spawnSync("zip", ["-qrX", zipPath, "."], {
+  // 固定文件顺序、时间戳和时区；-X 再剥离 uid/gid 等 extra fields。
+  const result = spawnSync("zip", ["-qX", zipPath, ...files], {
     cwd: stagingRoot,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      TZ: "UTC"
+    }
   });
   if (result.status !== 0) {
     throw new Error(`zip failed: ${result.stderr || result.stdout || "unknown error"}`);
@@ -191,7 +202,8 @@ function main() {
     throw new Error(`Forbidden files were packaged:\n${forbidden.join("\n")}`);
   }
 
-  const zipPath = createZip(version, name);
+  normalizePackagedTimestamps(files);
+  const zipPath = createZip(version, name, files);
   console.log(`Packaged ${files.length} files`);
   console.log(`Staging directory: ${relative(repoRoot, stagingRoot)}`);
   console.log(`ZIP: ${relative(repoRoot, zipPath)}`);

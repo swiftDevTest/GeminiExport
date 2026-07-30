@@ -1801,5 +1801,143 @@
   },
   "content_export_re_export_as": {
     "message": "Ré-exporter en"
+  },
+  "notion_sync_capturing_media_many": {
+    "message": "Capture de $1 images ($2/$3), cela peut prendre un moment..."
+  },
+  "notion_sync_capturing_media_progress": {
+    "message": "Capture des images ($1/$2)..."
+  },
+  "notion_sync_writing_large": {
+    "message": "Écriture de $1 messages dans Notion (conversation volumineuse, veuillez patienter)..."
+  },
+  "notion_sync_writing_count": {
+    "message": "Écriture de $1 messages dans Notion..."
+  },
+  "obsidian_processing_media_many": {
+    "message": "Traitement de $1 images ($2/$3), cela peut prendre un moment..."
+  },
+  "obsidian_processing_media_progress": {
+    "message": "Traitement des images ($1/$2)..."
+  },
+  "obsidian_rendering_large": {
+    "message": "Création du Markdown pour $1 messages (conversation volumineuse, veuillez patienter)..."
+  },
+  "obsidian_rendering_count": {
+    "message": "Création du Markdown pour $1 messages..."
+  },
+  "obsidian_choose_folders": {
+    "message": "Choisissez un dossier de notes pour commencer la synchronisation."
+  },
+  "obsidian_not_configured": {
+    "message": "Non configuré"
+  },
+  "obsidian_repair_folders": {
+    "message": "Réparer les dossiers du coffre"
+  },
+  "obsidian_status_failed": {
+    "message": "Impossible de vérifier l’état du coffre."
+  },
+  "popup_benefit_batch_export": {
+    "message": "Exportation groupée des conversations"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "Synchronisation fluide avec Notion et Obsidian"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "Échec de l’exportation"
+  },
+  "batch_status_completed": {
+    "message": "Terminé"
+  },
+  "batch_status_failed": {
+    "message": "Échec"
+  },
+  "batch_status_loading_page": {
+    "message": "Chargement de la page"
+  },
+  "batch_status_rendering": {
+    "message": "Génération du document"
+  },
+  "batch_status_scraping": {
+    "message": "Lecture de la conversation"
+  },
+  "batch_status_waiting": {
+    "message": "En attente"
+  },
+  "content_auth_session_expired": {
+    "message": "Votre session a expiré et vous avez été déconnecté. Ouvrez l’extension et reconnectez-vous."
+  },
+  "content_export_failed_message": {
+    "message": "Échec de l’exportation : $1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "Exporter en PDF"
+  },
+  "notion_cancel_task": {
+    "message": "Annuler la tâche"
+  },
+  "notion_fetch_failed": {
+    "message": "Échec de la récupération ($1)"
+  },
+  "notion_open_page": {
+    "message": "Ouvrir Notion"
+  },
+  "notion_retry_task": {
+    "message": "Réessayer"
+  },
+  "notion_select_database_first": {
+    "message": "Sélectionnez d’abord une base de données Notion."
+  },
+  "notion_status_cancelled": {
+    "message": "Annulé"
+  },
+  "notion_status_failed": {
+    "message": "Échec de la synchronisation"
+  },
+  "notion_status_held": {
+    "message": "Prêt à synchroniser"
+  },
+  "notion_status_partial": {
+    "message": "Terminé avec des avertissements"
+  },
+  "notion_status_pending": {
+    "message": "En attente de synchronisation"
+  },
+  "notion_status_retry_wait": {
+    "message": "En attente d’une nouvelle tentative"
+  },
+  "notion_status_running": {
+    "message": "Synchronisation"
+  },
+  "notion_status_succeeded": {
+    "message": "Synchronisation réussie"
+  },
+  "notion_sync_request_failed": {
+    "message": "Impossible d’envoyer la demande de synchronisation. Actualisez la page de conversation et réessayez."
+  },
+  "notion_sync_success_title": {
+    "message": "Synchronisé avec Notion"
+  },
+  "notion_untitled_conversation": {
+    "message": "Conversation sans titre"
+  },
+  "obsidian_batch_complete": {
+    "message": "Synchronisation groupée avec Obsidian terminée"
+  },
+  "obsidian_configure": {
+    "message": "Configurer Obsidian"
+  },
+  "obsidian_directories_missing": {
+    "message": "Un dossier configuré est manquant."
+  },
+  "obsidian_retry_check": {
+    "message": "Réessayer"
+  },
+  "obsidian_sync_complete": {
+    "message": "Synchronisé avec Obsidian"
+  },
+  "obsidian_vault": {
+    "message": "Coffre Obsidian"
   }
 }

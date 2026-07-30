@@ -1801,5 +1801,143 @@
   },
   "content_export_re_export_as": {
     "message": "別形式で再エクスポート"
+  },
+  "notion_sync_capturing_media_many": {
+    "message": "$1 枚の画像を取得中（$2/$3）。しばらくお待ちください..."
+  },
+  "notion_sync_capturing_media_progress": {
+    "message": "画像を取得中（$1/$2）..."
+  },
+  "notion_sync_writing_large": {
+    "message": "$1 件のメッセージを Notion に書き込み中（大きな会話です。しばらくお待ちください）..."
+  },
+  "notion_sync_writing_count": {
+    "message": "$1 件のメッセージを Notion に書き込み中..."
+  },
+  "obsidian_processing_media_many": {
+    "message": "$1 枚の画像を処理中（$2/$3）。しばらくお待ちください..."
+  },
+  "obsidian_processing_media_progress": {
+    "message": "画像を処理中（$1/$2）..."
+  },
+  "obsidian_rendering_large": {
+    "message": "$1 件のメッセージから Markdown を作成中（大きな会話です。しばらくお待ちください）..."
+  },
+  "obsidian_rendering_count": {
+    "message": "$1 件のメッセージから Markdown を作成中..."
+  },
+  "obsidian_choose_folders": {
+    "message": "同期を開始するには、ノートフォルダーを選択してください。"
+  },
+  "obsidian_not_configured": {
+    "message": "未設定"
+  },
+  "obsidian_repair_folders": {
+    "message": "Vault フォルダーを修復"
+  },
+  "obsidian_status_failed": {
+    "message": "Vault の状態を確認できませんでした。"
+  },
+  "popup_benefit_batch_export": {
+    "message": "会話の一括エクスポート"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "Notion・Obsidian とシームレスに同期"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "エクスポートに失敗しました"
+  },
+  "batch_status_completed": {
+    "message": "完了"
+  },
+  "batch_status_failed": {
+    "message": "失敗"
+  },
+  "batch_status_loading_page": {
+    "message": "ページを読み込み中"
+  },
+  "batch_status_rendering": {
+    "message": "ドキュメントを生成中"
+  },
+  "batch_status_scraping": {
+    "message": "会話を読み取り中"
+  },
+  "batch_status_waiting": {
+    "message": "待機中"
+  },
+  "content_auth_session_expired": {
+    "message": "サインインセッションの有効期限が切れ、ログアウトしました。拡張機能を開いて、もう一度サインインしてください。"
+  },
+  "content_export_failed_message": {
+    "message": "エクスポートに失敗しました：$1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "PDF としてエクスポート"
+  },
+  "notion_cancel_task": {
+    "message": "タスクをキャンセル"
+  },
+  "notion_fetch_failed": {
+    "message": "取得に失敗しました（$1）"
+  },
+  "notion_open_page": {
+    "message": "Notion を開く"
+  },
+  "notion_retry_task": {
+    "message": "再試行"
+  },
+  "notion_select_database_first": {
+    "message": "先に Notion データベースを選択してください。"
+  },
+  "notion_status_cancelled": {
+    "message": "キャンセル済み"
+  },
+  "notion_status_failed": {
+    "message": "同期に失敗しました"
+  },
+  "notion_status_held": {
+    "message": "同期の準備完了"
+  },
+  "notion_status_partial": {
+    "message": "警告付きで完了"
+  },
+  "notion_status_pending": {
+    "message": "同期待ち"
+  },
+  "notion_status_retry_wait": {
+    "message": "再試行待ち"
+  },
+  "notion_status_running": {
+    "message": "同期中"
+  },
+  "notion_status_succeeded": {
+    "message": "同期に成功しました"
+  },
+  "notion_sync_request_failed": {
+    "message": "同期リクエストを送信できませんでした。会話ページを再読み込みして、もう一度お試しください。"
+  },
+  "notion_sync_success_title": {
+    "message": "Notion に同期しました"
+  },
+  "notion_untitled_conversation": {
+    "message": "無題の会話"
+  },
+  "obsidian_batch_complete": {
+    "message": "Obsidian の一括同期が完了しました"
+  },
+  "obsidian_configure": {
+    "message": "Obsidian を設定"
+  },
+  "obsidian_directories_missing": {
+    "message": "設定済みのフォルダーが見つかりません。"
+  },
+  "obsidian_retry_check": {
+    "message": "再試行"
+  },
+  "obsidian_sync_complete": {
+    "message": "Obsidian に同期しました"
+  },
+  "obsidian_vault": {
+    "message": "Obsidian Vault"
   }
 }

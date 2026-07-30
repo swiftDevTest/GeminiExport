@@ -1716,13 +1716,13 @@
     "message": "Konversationsmedien werden erfasst..."
   },
   "notion_sync_writing": {
-    "message": "Schreibkonversation an Notion..."
+    "message": "Unterhaltung wird in Notion geschrieben..."
   },
   "obsidian_processing_media": {
-    "message": "ProBilder werden verarbeitet"
+    "message": "Bilder werden verarbeitet"
   },
   "obsidian_rendering": {
-    "message": "Gebäude Markdown"
+    "message": "Markdown wird erstellt"
   },
   "content_export_fail_image_limit_reason": {
     "message": "Der Bildexport überschreitet das Browser-Canvas-Limit."
@@ -1801,5 +1801,143 @@
   },
   "content_export_re_export_as": {
     "message": "Erneut exportieren als"
+  },
+  "notion_sync_capturing_media_many": {
+    "message": "$1 Bilder werden erfasst ($2/$3), dies kann einen Moment dauern..."
+  },
+  "notion_sync_capturing_media_progress": {
+    "message": "Bilder werden erfasst ($1/$2)..."
+  },
+  "notion_sync_writing_large": {
+    "message": "$1 Nachrichten werden in Notion geschrieben (große Unterhaltung, bitte warten)..."
+  },
+  "notion_sync_writing_count": {
+    "message": "$1 Nachrichten werden in Notion geschrieben..."
+  },
+  "obsidian_processing_media_many": {
+    "message": "$1 Bilder werden verarbeitet ($2/$3), dies kann einen Moment dauern..."
+  },
+  "obsidian_processing_media_progress": {
+    "message": "Bilder werden verarbeitet ($1/$2)..."
+  },
+  "obsidian_rendering_large": {
+    "message": "Markdown für $1 Nachrichten wird erstellt (große Unterhaltung, bitte warten)..."
+  },
+  "obsidian_rendering_count": {
+    "message": "Markdown für $1 Nachrichten wird erstellt..."
+  },
+  "obsidian_choose_folders": {
+    "message": "Wählen Sie einen Notizordner aus, um die Synchronisierung zu starten."
+  },
+  "obsidian_not_configured": {
+    "message": "Nicht konfiguriert"
+  },
+  "obsidian_repair_folders": {
+    "message": "Vault-Ordner reparieren"
+  },
+  "obsidian_status_failed": {
+    "message": "Vault-Status konnte nicht geprüft werden."
+  },
+  "popup_benefit_batch_export": {
+    "message": "Unterhaltungen im Batch exportieren"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "Nahtlose Synchronisierung mit Notion und Obsidian"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "Export fehlgeschlagen"
+  },
+  "batch_status_completed": {
+    "message": "Abgeschlossen"
+  },
+  "batch_status_failed": {
+    "message": "Fehlgeschlagen"
+  },
+  "batch_status_loading_page": {
+    "message": "Seite wird geladen"
+  },
+  "batch_status_rendering": {
+    "message": "Dokument wird erstellt"
+  },
+  "batch_status_scraping": {
+    "message": "Unterhaltung wird gelesen"
+  },
+  "batch_status_waiting": {
+    "message": "Warten"
+  },
+  "content_auth_session_expired": {
+    "message": "Ihre Anmeldesitzung ist abgelaufen und Sie wurden abgemeldet. Öffnen Sie die Erweiterung und melden Sie sich erneut an."
+  },
+  "content_export_failed_message": {
+    "message": "Export fehlgeschlagen: $1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "Als PDF exportieren"
+  },
+  "notion_cancel_task": {
+    "message": "Aufgabe abbrechen"
+  },
+  "notion_fetch_failed": {
+    "message": "Abruf fehlgeschlagen ($1)"
+  },
+  "notion_open_page": {
+    "message": "Notion öffnen"
+  },
+  "notion_retry_task": {
+    "message": "Wiederholen"
+  },
+  "notion_select_database_first": {
+    "message": "Wählen Sie zuerst eine Notion-Datenbank aus."
+  },
+  "notion_status_cancelled": {
+    "message": "Abgebrochen"
+  },
+  "notion_status_failed": {
+    "message": "Synchronisierung fehlgeschlagen"
+  },
+  "notion_status_held": {
+    "message": "Bereit zum Synchronisieren"
+  },
+  "notion_status_partial": {
+    "message": "Mit Warnungen abgeschlossen"
+  },
+  "notion_status_pending": {
+    "message": "Wartet auf Synchronisierung"
+  },
+  "notion_status_retry_wait": {
+    "message": "Wartet auf Wiederholung"
+  },
+  "notion_status_running": {
+    "message": "Wird synchronisiert"
+  },
+  "notion_status_succeeded": {
+    "message": "Synchronisierung erfolgreich"
+  },
+  "notion_sync_request_failed": {
+    "message": "Die Synchronisierungsanfrage konnte nicht gesendet werden. Aktualisieren Sie die Unterhaltungsseite und versuchen Sie es erneut."
+  },
+  "notion_sync_success_title": {
+    "message": "Mit Notion synchronisiert"
+  },
+  "notion_untitled_conversation": {
+    "message": "Unbenannte Unterhaltung"
+  },
+  "obsidian_batch_complete": {
+    "message": "Obsidian-Batch-Synchronisierung abgeschlossen"
+  },
+  "obsidian_configure": {
+    "message": "Obsidian konfigurieren"
+  },
+  "obsidian_directories_missing": {
+    "message": "Ein konfigurierter Ordner fehlt."
+  },
+  "obsidian_retry_check": {
+    "message": "Wiederholen"
+  },
+  "obsidian_sync_complete": {
+    "message": "Mit Obsidian synchronisiert"
+  },
+  "obsidian_vault": {
+    "message": "Obsidian-Vault"
   }
 }

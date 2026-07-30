@@ -4078,6 +4078,7 @@
       });
 
       hideExportProgress();
+      const preparationFailures = failures.slice();
       const saveResult = await saveBatchPreparedFiles(preparedFiles, rootName, signal);
       if (!saveResult || !saveResult.ok) {
         if (saveResult?.cancelled) {
@@ -4112,8 +4113,11 @@
       // 统一导出完成 UI：批量本地导出展示结果对话框（与批量同步、单次导出风格一致）
       const batchResultStatus = failures.length > 0 && savedCount > 0 ? "partial" : (savedCount > 0 ? "succeeded" : "failed");
       const batchResultItems = [
-        ...preparedFiles.map((f) => ({ title: f.title || f.filename, status: "saved" })),
-        ...failures.map((f) => ({ title: f.title || f.filename || "", status: "failed" }))
+        ...(Array.isArray(saveResult.items) ? saveResult.items : []),
+        ...preparationFailures.map((failure) => ({
+          title: failure.title || failure.filename || "",
+          status: "failed"
+        }))
       ];
       showExportResultDialog({
         kind: "batch_local",
@@ -5076,6 +5080,7 @@
       return { ok: false, error: "No files were prepared." };
     }
     const failures = [];
+    const items = [];
     let savedCount = 0;
     for (const file of preparedFiles) {
       if (signal && signal.aborted) {
@@ -5086,8 +5091,18 @@
       file.blob = null;
       if (!result.ok) {
         failures.push({ filename: file.filename, error: result.error });
+        items.push({
+          title: file.title || file.filename,
+          filename: file.filename,
+          status: "failed"
+        });
       } else {
         savedCount += 1;
+        items.push({
+          title: file.title || file.filename,
+          filename: file.filename,
+          status: "saved"
+        });
       }
     }
     if (failures.length) {
@@ -5095,10 +5110,11 @@
         ok: savedCount > 0,
         error: failures.length + " of " + preparedFiles.length + " files failed to save.",
         failures,
+        items,
         savedCount
       };
     }
-    return { ok: true, filename: rootName, savedCount };
+    return { ok: true, filename: rootName, items, savedCount };
   }
 
   // 更新整体面板状态
@@ -5411,33 +5427,27 @@
     };
   }
 
-  // 根据分类构建一键修复回调。回调会关闭结果对话框并触发对应的修复动作。
-  // 若 context 携带 item（侧边栏右键导出路径），修复动作针对原会话重新执行
-  // exportSingleSidebarConversation，避免落到主视图当前会话；否则走 performExport。
+  // 根据分类构建一键修复回调。选择性导出会携带原始消息快照，
+  // 避免退出选择模式后重试意外扩大为整段会话。
   function buildFailureFixHandler(failure, context) {
     const action = failure && failure.fixAction ? failure.fixAction : "retry";
     const settings = context && context.settingsForExport ? context.settingsForExport : {};
-    const item = context && context.item ? context.item : null;
     const formatForExport = context && context.formatForExport ? context.formatForExport : null;
+    const messages = Array.isArray(context?.messagesForExport) && context.messagesForExport.length > 0
+      ? cloneExportMessages(context.messagesForExport)
+      : null;
+    const runExport = (format) => {
+      if (format) activeFormat = format;
+      performExport({
+        settings,
+        ...(messages ? { messages: cloneExportMessages(messages) } : {})
+      });
+    };
     if (action === "change_format_pdf") {
-      return () => {
-        activeFormat = "pdf";
-        if (item && typeof exportSingleSidebarConversation === "function") {
-          exportSingleSidebarConversation(item, "pdf", settings);
-        } else {
-          performExport({ settings });
-        }
-      };
+      return () => runExport("pdf");
     }
     if (action === "change_format_markdown") {
-      return () => {
-        activeFormat = "markdown";
-        if (item && typeof exportSingleSidebarConversation === "function") {
-          exportSingleSidebarConversation(item, "markdown", settings);
-        } else {
-          performExport({ settings });
-        }
-      };
+      return () => runExport("markdown");
     }
     if (action === "refresh_page") {
       return () => {
@@ -5445,13 +5455,7 @@
       };
     }
     // retry / 默认
-    return () => {
-      if (item && formatForExport && typeof exportSingleSidebarConversation === "function") {
-        exportSingleSidebarConversation(item, formatForExport, settings);
-      } else {
-        performExport({ settings });
-      }
-    };
+    return () => runExport(formatForExport);
   }
 
   // 统一导出结果对话框：服务于单次导出（single）与批量本地导出（batch_local）。
@@ -5598,13 +5602,13 @@
             btn.disabled = true;
           });
           hideBatchSyncResultDialog();
-          // 侧边栏右键导出路径（result.item 存在）：针对原会话重新导出，避免落到主视图会话
-          if (result.item && typeof exportSingleSidebarConversation === "function") {
-            exportSingleSidebarConversation(result.item, fmt, result.settings);
-          } else {
-            activeFormat = fmt;
-            performExport({ settings: result.settings });
-          }
+          activeFormat = fmt;
+          performExport({
+            settings: result.settings,
+            ...(Array.isArray(result.messages) && result.messages.length > 0
+              ? { messages: cloneExportMessages(result.messages) }
+              : {})
+          });
         });
         itemsContainer.appendChild(button);
       });
@@ -5848,8 +5852,10 @@
     const requestSettings = options.settings && typeof options.settings === "object"
       ? options.settings
       : null;
+    const requestedMessages = Array.isArray(options.messages) && options.messages.length > 0
+      ? cloneExportMessages(options.messages)
+      : null;
     const platformForExport = exporter.detectPlatform();
-    const isSelectedExport = exportSettings.mode === "selected";
 
     if (!platformForExport) {
       showPageToast(t("toast_no_open_chat", isChineseUi() ? "请在支持的 AI 对话页打开并加载聊天内容后再导出。" : "Open a ChatGPT, Claude, or Gemini conversation to export."));
@@ -5865,6 +5871,7 @@
     const settingsForExport = requestSettings
       ? { ...exportSettings, ...requestSettings }
       : { ...exportSettings };
+    const isSelectedExport = settingsForExport.mode === "selected";
     const controller = new AbortController();
     abortController = controller;
     // 单次导出开始时清理批量控制器引用，避免 cancelExport 误 abort 上一次批量控制器
@@ -5966,14 +5973,15 @@
     }
 
     const pageParseOptions = { includeHtmlStyles: formatForExport === "html" };
-    const pageMessagesForExport = isSelectedExport && typeof exporter.getSelectedMessages === "function"
-      ? exporter.getSelectedMessages(pageParseOptions)
-      : parseCurrentChatMessages(pageParseOptions);
+    let pageMessagesForExport = requestedMessages
+      || (isSelectedExport && typeof exporter.getSelectedMessages === "function"
+        ? exporter.getSelectedMessages(pageParseOptions)
+        : parseCurrentChatMessages(pageParseOptions));
     let rawMessagesForExport = pageMessagesForExport;
     // 放宽条件：即使 DOM 解析返回 0 条消息，也尝试通过 API 抓取完整会话。
     // API 使用 URL 中的 conversationId 和用户 cookie，不依赖 DOM 选择器，
     // 可覆盖 DOM 虚拟化/懒加载导致 DOM 解析为空但会话实际存在的场景。
-    if (!isSelectedExport && platformForExport) {
+    if (!requestedMessages && !isSelectedExport && platformForExport) {
       if (!globalThis.CHATVAULT_IS_BATCH_EXPORT) {
         renderExportProgress(formatForExport, {
           mode: "single",
@@ -6339,7 +6347,8 @@
           format: formatForExport,
           filename: saveResult?.filename || blobResult?.filename || "",
           messageCount: metadata?.messageCount,
-          settings: settingsForExport
+          settings: settingsForExport,
+          messages: mode === "selected" ? cloneExportMessages(rawMessages) : null
         });
       }
 
@@ -6349,7 +6358,11 @@
         // 单次导出失败：展示具体原因 + 一键修复对话框（替代原来的通用 toast）
         if (!globalThis.CHATVAULT_IS_BATCH_EXPORT) {
           const failure = classifyExportFailure(e, { format: formatForExport });
-          const onFix = buildFailureFixHandler(failure, { formatForExport, settingsForExport });
+          const onFix = buildFailureFixHandler(failure, {
+            formatForExport,
+            settingsForExport,
+            messagesForExport: isSelectedExport ? rawMessagesForExport : null
+          });
           showExportResultDialog({
             kind: "single",
             status: "failed",

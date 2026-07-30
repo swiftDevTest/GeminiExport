@@ -1801,5 +1801,143 @@
   },
   "content_export_re_export_as": {
     "message": "Re-exportar como"
+  },
+  "notion_sync_capturing_media_many": {
+    "message": "Capturando $1 imágenes ($2/$3); puede tardar un momento..."
+  },
+  "notion_sync_capturing_media_progress": {
+    "message": "Capturando imágenes ($1/$2)..."
+  },
+  "notion_sync_writing_large": {
+    "message": "Escribiendo $1 mensajes en Notion (conversación grande, espera)..."
+  },
+  "notion_sync_writing_count": {
+    "message": "Escribiendo $1 mensajes en Notion..."
+  },
+  "obsidian_processing_media_many": {
+    "message": "Procesando $1 imágenes ($2/$3); puede tardar un momento..."
+  },
+  "obsidian_processing_media_progress": {
+    "message": "Procesando imágenes ($1/$2)..."
+  },
+  "obsidian_rendering_large": {
+    "message": "Creando Markdown para $1 mensajes (conversación grande, espera)..."
+  },
+  "obsidian_rendering_count": {
+    "message": "Creando Markdown para $1 mensajes..."
+  },
+  "obsidian_choose_folders": {
+    "message": "Elige una carpeta de notas para comenzar a sincronizar."
+  },
+  "obsidian_not_configured": {
+    "message": "Sin configurar"
+  },
+  "obsidian_repair_folders": {
+    "message": "Reparar carpetas del Vault"
+  },
+  "obsidian_status_failed": {
+    "message": "No se pudo comprobar el estado del Vault."
+  },
+  "popup_benefit_batch_export": {
+    "message": "Exportación de conversaciones por lotes"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "Sincronización fluida con Notion y Obsidian"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "Error de exportación"
+  },
+  "batch_status_completed": {
+    "message": "Completado"
+  },
+  "batch_status_failed": {
+    "message": "Error"
+  },
+  "batch_status_loading_page": {
+    "message": "Cargando página"
+  },
+  "batch_status_rendering": {
+    "message": "Generando documento"
+  },
+  "batch_status_scraping": {
+    "message": "Leyendo conversación"
+  },
+  "batch_status_waiting": {
+    "message": "En espera"
+  },
+  "content_auth_session_expired": {
+    "message": "Tu sesión caducó y se cerró. Abre la extensión e inicia sesión de nuevo."
+  },
+  "content_export_failed_message": {
+    "message": "Error de exportación: $1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "Exportar como PDF"
+  },
+  "notion_cancel_task": {
+    "message": "Cancelar tarea"
+  },
+  "notion_fetch_failed": {
+    "message": "Error al obtener datos ($1)"
+  },
+  "notion_open_page": {
+    "message": "Abrir Notion"
+  },
+  "notion_retry_task": {
+    "message": "Reintentar"
+  },
+  "notion_select_database_first": {
+    "message": "Selecciona primero una base de datos de Notion."
+  },
+  "notion_status_cancelled": {
+    "message": "Cancelado"
+  },
+  "notion_status_failed": {
+    "message": "Error de sincronización"
+  },
+  "notion_status_held": {
+    "message": "Listo para sincronizar"
+  },
+  "notion_status_partial": {
+    "message": "Completado con advertencias"
+  },
+  "notion_status_pending": {
+    "message": "Esperando sincronización"
+  },
+  "notion_status_retry_wait": {
+    "message": "Esperando para reintentar"
+  },
+  "notion_status_running": {
+    "message": "Sincronizando"
+  },
+  "notion_status_succeeded": {
+    "message": "Sincronización completada"
+  },
+  "notion_sync_request_failed": {
+    "message": "No se pudo enviar la solicitud de sincronización. Actualiza la página de la conversación e inténtalo de nuevo."
+  },
+  "notion_sync_success_title": {
+    "message": "Sincronizado con Notion"
+  },
+  "notion_untitled_conversation": {
+    "message": "Conversación sin título"
+  },
+  "obsidian_batch_complete": {
+    "message": "Sincronización por lotes con Obsidian completada"
+  },
+  "obsidian_configure": {
+    "message": "Configurar Obsidian"
+  },
+  "obsidian_directories_missing": {
+    "message": "Falta una carpeta configurada."
+  },
+  "obsidian_retry_check": {
+    "message": "Reintentar"
+  },
+  "obsidian_sync_complete": {
+    "message": "Sincronizado con Obsidian"
+  },
+  "obsidian_vault": {
+    "message": "Vault de Obsidian"
   }
 }

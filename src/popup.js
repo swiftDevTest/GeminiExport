@@ -283,17 +283,16 @@
   }
 
   function setFeatureTexts() {
-    var features = [
-      ["popup_benefit_notion_obsidian", "Notion & Obsidian sync"],
-      ["popup_benefit_unlimited_exports", "Unlimited local exports"],
-      ["popup_benefit_report_themes", "Publication-grade themes"],
-      ["popup_benefit_hide_watermark", "Hide all export watermarks"],
-      ["popup_benefit_local_receipts", "Local export receipts"],
-      ["popup_benefit_shared_pro", "Shared Pro access"]
-    ];
-    document.querySelectorAll(".feature-tick-item span:last-child").forEach(function (el, index) {
-      var item = features[index];
-      if (item) el.textContent = t(item[0], item[1]);
+    var features = {
+      popup_benefit_batch_export: "Batch conversation export",
+      popup_benefit_notion_obsidian: "Seamless Notion & Obsidian sync",
+      popup_benefit_unlimited_exports: "Unlimited local exports",
+      popup_benefit_report_themes: "Publication-grade themes",
+      popup_benefit_hide_watermark: "Remove export watermarks"
+    };
+    document.querySelectorAll(".feature-tick-item [data-benefit-key]").forEach(function (el) {
+      var key = el.getAttribute("data-benefit-key");
+      if (key && features[key]) el.textContent = t(key, features[key]);
     });
   }
 
@@ -2545,7 +2544,12 @@
       } else {
         const option = document.createElement("option");
         option.value = "";
-        option.textContent = tx("notion_fetch_failed", `Fetch failed (${error && error.message ? error.message : "unknown error"})`, `拉取失败 (${error && error.message ? error.message : "unknown error"})`);
+        option.textContent = tx(
+          "notion_fetch_failed",
+          "Fetch failed ($1)",
+          "拉取失败（$1）",
+          error && error.message ? error.message : "unknown error"
+        );
         dbSelect.replaceChildren(option);
       }
       return false;

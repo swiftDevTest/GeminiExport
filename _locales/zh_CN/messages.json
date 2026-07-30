@@ -1837,5 +1837,107 @@
   },
   "obsidian_status_failed": {
     "message": "无法检查 Vault 状态。"
+  },
+  "popup_benefit_batch_export": {
+    "message": "批量导出会话"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "Notion 与 Obsidian 无缝同步"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "导出失败"
+  },
+  "batch_status_completed": {
+    "message": "已完成"
+  },
+  "batch_status_failed": {
+    "message": "失败"
+  },
+  "batch_status_loading_page": {
+    "message": "正在加载页面"
+  },
+  "batch_status_rendering": {
+    "message": "正在渲染文档"
+  },
+  "batch_status_scraping": {
+    "message": "正在读取会话"
+  },
+  "batch_status_waiting": {
+    "message": "等待中"
+  },
+  "content_auth_session_expired": {
+    "message": "登录状态已失效，已为您安全退出。请打开扩展并重新登录。"
+  },
+  "content_export_failed_message": {
+    "message": "导出失败：$1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "导出为 PDF"
+  },
+  "notion_cancel_task": {
+    "message": "取消任务"
+  },
+  "notion_fetch_failed": {
+    "message": "拉取失败（$1）"
+  },
+  "notion_open_page": {
+    "message": "打开 Notion"
+  },
+  "notion_retry_task": {
+    "message": "重试"
+  },
+  "notion_select_database_first": {
+    "message": "请先选择一个 Notion Database。"
+  },
+  "notion_status_cancelled": {
+    "message": "已取消"
+  },
+  "notion_status_failed": {
+    "message": "同步失败"
+  },
+  "notion_status_held": {
+    "message": "准备同步"
+  },
+  "notion_status_partial": {
+    "message": "已完成，但有警告"
+  },
+  "notion_status_pending": {
+    "message": "等待同步"
+  },
+  "notion_status_retry_wait": {
+    "message": "等待重试"
+  },
+  "notion_status_running": {
+    "message": "正在同步"
+  },
+  "notion_status_succeeded": {
+    "message": "同步成功"
+  },
+  "notion_sync_request_failed": {
+    "message": "同步请求发送失败，请刷新会话页面后重试。"
+  },
+  "notion_sync_success_title": {
+    "message": "已同步到 Notion"
+  },
+  "notion_untitled_conversation": {
+    "message": "未命名会话"
+  },
+  "obsidian_batch_complete": {
+    "message": "Obsidian 批量同步完成"
+  },
+  "obsidian_configure": {
+    "message": "配置 Obsidian"
+  },
+  "obsidian_directories_missing": {
+    "message": "已配置的文件夹不存在。"
+  },
+  "obsidian_retry_check": {
+    "message": "重试"
+  },
+  "obsidian_sync_complete": {
+    "message": "已同步到 Obsidian"
+  },
+  "obsidian_vault": {
+    "message": "Obsidian Vault"
   }
 }

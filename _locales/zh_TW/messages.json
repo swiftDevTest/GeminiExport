@@ -1825,5 +1825,119 @@
   },
   "content_export_re_export_as": {
     "message": "快速再匯出為"
+  },
+  "obsidian_choose_folders": {
+    "message": "請選擇筆記資料夾以開始同步。"
+  },
+  "obsidian_not_configured": {
+    "message": "尚未設定"
+  },
+  "obsidian_repair_folders": {
+    "message": "修復 Vault 資料夾"
+  },
+  "obsidian_status_failed": {
+    "message": "無法檢查 Vault 狀態。"
+  },
+  "popup_benefit_batch_export": {
+    "message": "批量匯出對話"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "流暢同步至 Notion 與 Obsidian"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "匯出失敗"
+  },
+  "batch_status_completed": {
+    "message": "已完成"
+  },
+  "batch_status_failed": {
+    "message": "失敗"
+  },
+  "batch_status_loading_page": {
+    "message": "正在載入頁面"
+  },
+  "batch_status_rendering": {
+    "message": "正在產生文件"
+  },
+  "batch_status_scraping": {
+    "message": "正在讀取對話"
+  },
+  "batch_status_waiting": {
+    "message": "等待中"
+  },
+  "content_auth_session_expired": {
+    "message": "登入工作階段已過期，您已登出。請開啟擴充功能並重新登入。"
+  },
+  "content_export_failed_message": {
+    "message": "匯出失敗：$1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "匯出為 PDF"
+  },
+  "notion_cancel_task": {
+    "message": "取消任務"
+  },
+  "notion_fetch_failed": {
+    "message": "擷取失敗（$1）"
+  },
+  "notion_open_page": {
+    "message": "開啟 Notion"
+  },
+  "notion_retry_task": {
+    "message": "重試"
+  },
+  "notion_select_database_first": {
+    "message": "請先選擇 Notion 資料庫。"
+  },
+  "notion_status_cancelled": {
+    "message": "已取消"
+  },
+  "notion_status_failed": {
+    "message": "同步失敗"
+  },
+  "notion_status_held": {
+    "message": "準備同步"
+  },
+  "notion_status_partial": {
+    "message": "完成，但有警告"
+  },
+  "notion_status_pending": {
+    "message": "等待同步"
+  },
+  "notion_status_retry_wait": {
+    "message": "等待重試"
+  },
+  "notion_status_running": {
+    "message": "同步中"
+  },
+  "notion_status_succeeded": {
+    "message": "同步成功"
+  },
+  "notion_sync_request_failed": {
+    "message": "無法傳送同步請求。請重新整理對話頁面後再試一次。"
+  },
+  "notion_sync_success_title": {
+    "message": "已同步至 Notion"
+  },
+  "notion_untitled_conversation": {
+    "message": "未命名對話"
+  },
+  "obsidian_batch_complete": {
+    "message": "Obsidian 批量同步完成"
+  },
+  "obsidian_configure": {
+    "message": "設定 Obsidian"
+  },
+  "obsidian_directories_missing": {
+    "message": "找不到已設定的資料夾。"
+  },
+  "obsidian_retry_check": {
+    "message": "重試"
+  },
+  "obsidian_sync_complete": {
+    "message": "已同步至 Obsidian"
+  },
+  "obsidian_vault": {
+    "message": "Obsidian Vault"
   }
 }

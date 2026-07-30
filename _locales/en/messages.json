@@ -1837,5 +1837,107 @@
   },
   "obsidian_status_failed": {
     "message": "Could not check Vault status."
+  },
+  "popup_benefit_batch_export": {
+    "message": "Batch conversation export"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "Seamless Notion & Obsidian sync"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "Export failed"
+  },
+  "batch_status_completed": {
+    "message": "Completed"
+  },
+  "batch_status_failed": {
+    "message": "Failed"
+  },
+  "batch_status_loading_page": {
+    "message": "Loading page"
+  },
+  "batch_status_rendering": {
+    "message": "Rendering document"
+  },
+  "batch_status_scraping": {
+    "message": "Reading conversation"
+  },
+  "batch_status_waiting": {
+    "message": "Waiting"
+  },
+  "content_auth_session_expired": {
+    "message": "Your sign-in session expired and you were signed out. Open the extension and sign in again."
+  },
+  "content_export_failed_message": {
+    "message": "Export failed: $1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "Export as PDF"
+  },
+  "notion_cancel_task": {
+    "message": "Cancel task"
+  },
+  "notion_fetch_failed": {
+    "message": "Fetch failed ($1)"
+  },
+  "notion_open_page": {
+    "message": "Open Notion"
+  },
+  "notion_retry_task": {
+    "message": "Retry"
+  },
+  "notion_select_database_first": {
+    "message": "Please select a Notion Database first."
+  },
+  "notion_status_cancelled": {
+    "message": "Cancelled"
+  },
+  "notion_status_failed": {
+    "message": "Sync failed"
+  },
+  "notion_status_held": {
+    "message": "Ready to sync"
+  },
+  "notion_status_partial": {
+    "message": "Completed with warnings"
+  },
+  "notion_status_pending": {
+    "message": "Waiting to sync"
+  },
+  "notion_status_retry_wait": {
+    "message": "Waiting to retry"
+  },
+  "notion_status_running": {
+    "message": "Syncing"
+  },
+  "notion_status_succeeded": {
+    "message": "Sync succeeded"
+  },
+  "notion_sync_request_failed": {
+    "message": "Failed to send the sync request. Refresh the conversation page and try again."
+  },
+  "notion_sync_success_title": {
+    "message": "Synced to Notion"
+  },
+  "notion_untitled_conversation": {
+    "message": "Untitled conversation"
+  },
+  "obsidian_batch_complete": {
+    "message": "Obsidian batch sync complete"
+  },
+  "obsidian_configure": {
+    "message": "Configure Obsidian"
+  },
+  "obsidian_directories_missing": {
+    "message": "A configured folder is missing."
+  },
+  "obsidian_retry_check": {
+    "message": "Retry"
+  },
+  "obsidian_sync_complete": {
+    "message": "Synced to Obsidian"
+  },
+  "obsidian_vault": {
+    "message": "Obsidian Vault"
   }
 }

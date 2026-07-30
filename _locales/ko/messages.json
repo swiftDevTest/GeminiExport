@@ -1801,5 +1801,143 @@
   },
   "content_export_re_export_as": {
     "message": "다른 형식으로 다시 내보내기"
+  },
+  "notion_sync_capturing_media_many": {
+    "message": "이미지 $1개 캡처 중($2/$3), 잠시 걸릴 수 있습니다..."
+  },
+  "notion_sync_capturing_media_progress": {
+    "message": "이미지 캡처 중($1/$2)..."
+  },
+  "notion_sync_writing_large": {
+    "message": "메시지 $1개를 Notion에 작성 중입니다(대화가 커서 시간이 걸릴 수 있습니다)..."
+  },
+  "notion_sync_writing_count": {
+    "message": "메시지 $1개를 Notion에 작성 중..."
+  },
+  "obsidian_processing_media_many": {
+    "message": "이미지 $1개 처리 중($2/$3), 잠시 걸릴 수 있습니다..."
+  },
+  "obsidian_processing_media_progress": {
+    "message": "이미지 처리 중($1/$2)..."
+  },
+  "obsidian_rendering_large": {
+    "message": "메시지 $1개의 Markdown 생성 중입니다(대화가 커서 시간이 걸릴 수 있습니다)..."
+  },
+  "obsidian_rendering_count": {
+    "message": "메시지 $1개의 Markdown 생성 중..."
+  },
+  "obsidian_choose_folders": {
+    "message": "동기화를 시작하려면 노트 폴더를 선택하세요."
+  },
+  "obsidian_not_configured": {
+    "message": "설정되지 않음"
+  },
+  "obsidian_repair_folders": {
+    "message": "Vault 폴더 복구"
+  },
+  "obsidian_status_failed": {
+    "message": "Vault 상태를 확인할 수 없습니다."
+  },
+  "popup_benefit_batch_export": {
+    "message": "대화 일괄 내보내기"
+  },
+  "popup_benefit_notion_obsidian": {
+    "message": "Notion 및 Obsidian과 원활하게 동기화"
+  },
+  "batch_export_failed_tooltip": {
+    "message": "내보내기 실패"
+  },
+  "batch_status_completed": {
+    "message": "완료"
+  },
+  "batch_status_failed": {
+    "message": "실패"
+  },
+  "batch_status_loading_page": {
+    "message": "페이지 불러오는 중"
+  },
+  "batch_status_rendering": {
+    "message": "문서 생성 중"
+  },
+  "batch_status_scraping": {
+    "message": "대화 읽는 중"
+  },
+  "batch_status_waiting": {
+    "message": "대기 중"
+  },
+  "content_auth_session_expired": {
+    "message": "로그인 세션이 만료되어 로그아웃되었습니다. 확장 프로그램을 열고 다시 로그인하세요."
+  },
+  "content_export_failed_message": {
+    "message": "내보내기 실패: $1"
+  },
+  "image_limit_modal_export_pdf": {
+    "message": "PDF로 내보내기"
+  },
+  "notion_cancel_task": {
+    "message": "작업 취소"
+  },
+  "notion_fetch_failed": {
+    "message": "가져오기 실패($1)"
+  },
+  "notion_open_page": {
+    "message": "Notion 열기"
+  },
+  "notion_retry_task": {
+    "message": "다시 시도"
+  },
+  "notion_select_database_first": {
+    "message": "먼저 Notion 데이터베이스를 선택하세요."
+  },
+  "notion_status_cancelled": {
+    "message": "취소됨"
+  },
+  "notion_status_failed": {
+    "message": "동기화 실패"
+  },
+  "notion_status_held": {
+    "message": "동기화 준비 완료"
+  },
+  "notion_status_partial": {
+    "message": "경고와 함께 완료"
+  },
+  "notion_status_pending": {
+    "message": "동기화 대기 중"
+  },
+  "notion_status_retry_wait": {
+    "message": "재시도 대기 중"
+  },
+  "notion_status_running": {
+    "message": "동기화 중"
+  },
+  "notion_status_succeeded": {
+    "message": "동기화 성공"
+  },
+  "notion_sync_request_failed": {
+    "message": "동기화 요청을 보내지 못했습니다. 대화 페이지를 새로고침한 후 다시 시도하세요."
+  },
+  "notion_sync_success_title": {
+    "message": "Notion에 동기화됨"
+  },
+  "notion_untitled_conversation": {
+    "message": "제목 없는 대화"
+  },
+  "obsidian_batch_complete": {
+    "message": "Obsidian 일괄 동기화 완료"
+  },
+  "obsidian_configure": {
+    "message": "Obsidian 설정"
+  },
+  "obsidian_directories_missing": {
+    "message": "설정한 폴더가 없습니다."
+  },
+  "obsidian_retry_check": {
+    "message": "다시 시도"
+  },
+  "obsidian_sync_complete": {
+    "message": "Obsidian에 동기화됨"
+  },
+  "obsidian_vault": {
+    "message": "Obsidian Vault"
   }
 }
