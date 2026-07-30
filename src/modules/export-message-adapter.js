@@ -12,7 +12,7 @@
     var deps = options || {};
 
     function getChatPlatform(chat) {
-      return deps.getChatPlatform ? deps.getChatPlatform(chat) : chat && chat.platform || "gemini";
+      return deps.getChatPlatform ? deps.getChatPlatform(chat) : chat && chat.platform || "chatgpt";
     }
 
     function getChatConversationId(chat) {

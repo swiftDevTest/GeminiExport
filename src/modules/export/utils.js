@@ -376,7 +376,7 @@ export function getExportFooterSegments(settings, metadata) {
   var sourceUrl = getExportSourceUrl(metadata);
   return {
     left: settings && settings.show_chatvault_badge
-      ? t("export_pdf_footer_branding", "Gemini Export")
+      ? t("export_pdf_footer_branding", "Exported by Gemini Export")
       : "",
     right: settings && settings.include_source_url && sourceUrl
       ? t("export_footer_source", "Export From: $1", sourceUrl)
@@ -2693,10 +2693,12 @@ export function getInlinePlainText(value) {
         return formatLatexUnicode("\\(" + text.trim() + "\\)");
       }
       if (marks.superscript || segment && segment.superscript) {
-        return formatLatexUnicode("\\(X^{" + text.trim() + "}\\)").replace(/^X/, "");
+        // 使用 LaTeX 空基上标语法 {}^{...}，避免占位符 hack 的边界问题
+        return formatLatexUnicode("\\({}^{" + text.trim() + "}\\)");
       }
       if (marks.subscript || segment && segment.subscript) {
-        return formatLatexUnicode("\\(X_{" + text.trim() + "}\\)").replace(/^X/, "");
+        // 使用 LaTeX 空基下标语法 {}_{...}
+        return formatLatexUnicode("\\({}_{" + text.trim() + "}\\)");
       }
       if (marks.code || segment && segment.code) {
         return text;
@@ -2728,9 +2730,9 @@ export function getInlineRichText(value) {
     var text = isMath
       ? formatLatexUnicode("\\(" + sanitizeInlineSegmentText(segment && segment.text || "").trim() + "\\)")
       : marks.superscript || segment.superscript
-      ? formatLatexUnicode("\\(X^{" + sanitizeInlineSegmentText(segment && segment.text || "").trim() + "}\\)").replace(/^X/, "")
+      ? formatLatexUnicode("\\({}^{" + sanitizeInlineSegmentText(segment && segment.text || "").trim() + "}\\)")
       : marks.subscript || segment.subscript
-      ? formatLatexUnicode("\\(X_{" + sanitizeInlineSegmentText(segment && segment.text || "").trim() + "}\\)").replace(/^X/, "")
+      ? formatLatexUnicode("\\({}_{" + sanitizeInlineSegmentText(segment && segment.text || "").trim() + "}\\)")
       : isCode
       ? sanitizeInlineSegmentText(segment && segment.text || "")
       : formatInlineTextForDisplay(segment && segment.text || "");

@@ -94,12 +94,7 @@ var downloadStatusListenerAttached = false;
 
 if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage && !downloadStatusListenerAttached) {
   downloadStatusListenerAttached = true;
-  chrome.runtime.onMessage.addListener(function (message, sender) {
-    // 安全校验：仅接受来自本扩展的消息，拒绝其他扩展或页面注入的消息
-    // （与 content.js / popup.js / background.js 的 H3 修复对齐）
-    if (!sender || sender.id !== chrome.runtime.id) {
-      return;
-    }
+  chrome.runtime.onMessage.addListener(function (message) {
     if (message && message.type === "CHATVAULT_DOWNLOAD_STATUS") {
       var downloadId = message.downloadId;
       var entry = activeBlobUrls.get(downloadId);

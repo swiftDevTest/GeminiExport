@@ -312,6 +312,7 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
     if (block.type === "list") {
       var groups = [];
       var maxLineWidth = 0;
+      var listStart = block.start || 1;
       (block.items || []).forEach(function (item, index) {
         var itemFont = imageBodyFont;
         var textIndent = 26;
@@ -335,7 +336,7 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
           lineHeight: 28,
           font: itemFont,
           ordered: block.ordered,
-          index: (block.start || 1) + index,
+          index: listStart + index,
           isSub: false
         });
         (item.subItems || []).forEach(function (sub) {
@@ -853,7 +854,6 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
         ctx.restore();
       }
     } catch (error) {
-      ctx.restore();
       var failedBlock = Object.assign({}, block, {
         width: size,
         height: size + 12,
@@ -1035,7 +1035,7 @@ export async function buildImageBlob(messages, metadata, settingsInput, options)
   if (settings.show_chatvault_badge) {
     var footerY = y + IMAGE_FOOTER_TOP_GAP;
     ctx.font = "700 15px " + theme.font.body;
-    var footerText = t("export_pdf_footer_branding", "Gemini Export");
+    var footerText = t("export_pdf_footer_branding", "Exported by Gemini Export");
     var footerWidth = Math.max(120, ctx.measureText(footerText).width);
     var logoGradient = ctx.createLinearGradient(pad, footerY, pad + footerWidth, footerY);
     logoGradient.addColorStop(0, theme.color.accent);

@@ -319,6 +319,8 @@ async function buildEmbeddedImageMap(messages, options) {
       }
     } catch (error) {
       if (error && error.name === "AbortError") throw error;
+      // 非 Abort 错误静默吞掉会使用户无法区分"图片不可用"与"瞬时获取失败"，这里记录一条诊断日志
+      console.warn("[ChatVault] HTML export: image embedding failed", { src: src, error: error && error.message });
     }
     notifyProgress(options, t("export_progress_embedding_images", "Embedding images"), 0.05 + 0.2 * ((index + 1) / Math.max(1, sources.length)));
   });

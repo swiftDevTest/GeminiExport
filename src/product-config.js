@@ -10,6 +10,7 @@
     shortName: "Gemini Export",
     checkoutUrl: "https://tabpilotpro.com/gemini/checkout.html",
     checkoutBaseUrl: "https://tabpilotpro.com/gemini",
+    uninstallUrl: "https://tabpilotpro.com/gemini/uninstall.html",
     storageNamespace: "gemini_export",
     isolatedMembership: true,
     supportedPlatforms: ["gemini"],
