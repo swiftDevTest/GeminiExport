@@ -4,10 +4,19 @@
 // 一致的 storage key（否则 session/entitlement 变更监听会因 key 不一致而失效）。
 try {
   importScripts("product-config.js");
-} catch (error) {}
+} catch (error) {
+  // product-config.js 是 storageKey/PRODUCT_ID 等命名空间的基础，加载失败会导致
+  // background 与 supabase-auth.js 的 storage key 不一致（session/entitlement 监听失效）。
+  // 必须留下可观测日志，否则退化到默认值后排查极困难。
+  console.warn("[Background] Failed to import product-config.js:", error);
+}
 try {
   importScripts("supabase-config.js");
-} catch (error) {}
+} catch (error) {
+  // supabase-config.js 缺失会导致 SUPABASE_URL/PUBLISHABLE_KEY 走硬编码默认值，
+  // googleClientId 为空会让 Google 登录直接失败。
+  console.warn("[Background] Failed to import supabase-config.js:", error);
+}
 try {
   importScripts("notion-background.js");
 } catch (e) {
@@ -37,40 +46,19 @@ try {
   const ENTITLEMENT_STATE_CACHE_KEY = storageKey("entitlement_state.v1");
   const MAX_IMAGE_FETCH_BYTES = 8 * 1024 * 1024;
   const IMAGE_FETCH_TIMEOUT_MS = 8000;
-  const ANALYTICS_QUEUE_KEY = storageKey("analytics.queue.v1");
-  const ANALYTICS_GUEST_ID_KEY = storageKey("analytics.guest_id.v1");
-  const ANALYTICS_IDENTIFY_DONE_KEY = storageKey("analytics.identify_done.v1");
-  const ANALYTICS_TRACKED_ONCE_KEY = storageKey("analytics.tracked_once.v1");
-  const ANALYTICS_FLUSH_INTERVAL_MS = 15 * 1000;
-  const ANALYTICS_BATCH_SIZE = 10;
-  const ANALYTICS_MAX_QUEUE = 50;
   const SUPABASE_CONFIG = globalThis.CHATVAULT_SUPABASE_CONFIG || {};
   const SUPABASE_URL = SUPABASE_CONFIG.url || "https://acgehhqcgreatcjcefub.supabase.co";
   const SUPABASE_PUBLISHABLE_KEY = SUPABASE_CONFIG.publishableKey || "sb_publishable_GH05KXWPIo42YrorR0OGyQ_XdEWzY8Q";
   const SUPABASE_REFRESH_RESULT_TTL_MS = 30 * 1000;
-  const ANALYTICS_ALLOWED_EVENTS = new Set([
-    "auth_success",
-    "export_success",
-    "export_failed",
-    "vip_view_exposure",
-    "vip_sku_click",
-    "vip_signin_required",
-    "vip_purchase_click",
-    "vip_style_click"
-  ]);
-  const ANALYTICS_ALLOWED_PLATFORMS = new Set(["chatgpt", "claude", "gemini", "unknown"]);
   const supabaseRefreshPromises = new Map();
   const supabaseRefreshResults = new Map();
   let sessionMutationQueue = Promise.resolve();
   let googleOAuthInFlightCount = 0;
   const backgroundImageFetchControllers = new Map();
-  let analyticsMutationQueue = Promise.resolve();
-  let analyticsFlushTimer = null;
-  let analyticsFlushTimeout = null;
   const TRUSTED_CONTENT_HOSTS = new Set(
     Array.isArray(productConfig.allowedHosts) && productConfig.allowedHosts.length
       ? productConfig.allowedHosts
-      : ["chatgpt.com", "chat.openai.com", "claude.ai", "gemini.google.com"]
+      : ["gemini.google.com"]
   );
   const CONTENT_DOCUMENT_URL_PATTERNS = Array.isArray(productConfig.documentUrlPatterns) && productConfig.documentUrlPatterns.length
     ? productConfig.documentUrlPatterns
@@ -248,6 +236,8 @@ try {
     const encrypted = await encryptEntitlementCacheSnapshot(snapshot);
     if (encrypted) {
       await storageSet({ [ENTITLEMENT_STATE_CACHE_KEY]: encrypted });
+    } else {
+      await storageSet({ [ENTITLEMENT_STATE_CACHE_KEY]: null });
     }
     // If encryption is unavailable, skip caching rather than store plaintext.
     return snapshot;
@@ -501,72 +491,67 @@ try {
     return clientId;
   }
 
-  function startGoogleOAuthSessionInternal(clientId) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const identityRedirectUri = getIdentityRedirectUri();
-        const normalizedClientId = String(clientId || "").trim();
-        if (!normalizedClientId || normalizedClientId === "YOUR_GOOGLE_CLIENT_ID") {
-          reject(new Error("Please configure googleClientId in supabase-config.js first."));
+  async function startGoogleOAuthSessionInternal(clientId) {
+    const identityRedirectUri = getIdentityRedirectUri();
+    const normalizedClientId = String(clientId || "").trim();
+    if (!normalizedClientId || normalizedClientId === "YOUR_GOOGLE_CLIENT_ID") {
+      throw new Error("Please configure googleClientId in supabase-config.js first.");
+    }
+
+    const rawNonce = createRandomHex(32);
+    const hashedNonce = await sha256Hex(rawNonce);
+    const redirectUri = encodeURIComponent(identityRedirectUri);
+    const scope = encodeURIComponent("openid email profile");
+    const responseType = encodeURIComponent("id_token token");
+    const state = createRandomHex(16);
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(normalizedClientId)}&response_type=${responseType}&redirect_uri=${redirectUri}&scope=${scope}&state=${state}&nonce=${hashedNonce}`;
+
+    return new Promise((resolve, reject) => {
+      chrome.identity.launchWebAuthFlow({
+        url: authUrl,
+        interactive: true
+      }, async (redirectUrl) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message || "Failed to initiate Google Login."));
           return;
         }
 
-        const rawNonce = createRandomHex(32);
-        const hashedNonce = await sha256Hex(rawNonce);
-        const redirectUri = encodeURIComponent(identityRedirectUri);
-        const scope = encodeURIComponent("openid email profile");
-        const responseType = encodeURIComponent("id_token token");
-        const state = createRandomHex(16);
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(normalizedClientId)}&response_type=${responseType}&redirect_uri=${redirectUri}&scope=${scope}&state=${state}&nonce=${hashedNonce}`;
+        if (!redirectUrl) {
+          reject(new Error("Authorization failed: no redirect URL."));
+          return;
+        }
 
-        chrome.identity.launchWebAuthFlow({
-          url: authUrl,
-          interactive: true
-        }, async (redirectUrl) => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            reject(new Error(lastError.message || "Failed to initiate Google Login."));
+        try {
+          const params = getOAuthParams(redirectUrl);
+          if (params.has("error") || params.has("error_description")) {
+            reject(new Error(`${getOAuthErrorMessage(params, "Authorization failed.")} Google client ID: ${normalizedClientId}. Redirect URI: ${identityRedirectUri}`));
             return;
           }
 
-          if (!redirectUrl) {
-            reject(new Error("Authorization failed: no redirect URL."));
+          const idToken = params.get("id_token");
+          const accessToken = params.get("access_token");
+          const returnedState = params.get("state");
+
+          if (returnedState !== state) {
+            reject(new Error("Google OAuth state validation failed."));
             return;
           }
 
-          try {
-            const params = getOAuthParams(redirectUrl);
-            if (params.has("error") || params.has("error_description")) {
-              reject(new Error(`${getOAuthErrorMessage(params, "Authorization failed.")} Google client ID: ${normalizedClientId}. Redirect URI: ${identityRedirectUri}`));
-              return;
-            }
-
-            const idToken = params.get("id_token");
-            const accessToken = params.get("access_token");
-            const returnedState = params.get("state");
-
-            if (returnedState !== state) {
-              reject(new Error("Google OAuth state validation failed."));
-              return;
-            }
-
-            if (!idToken) {
-              reject(new Error("Missing ID Token in Google response."));
-              return;
-            }
-
-            const session = await exchangeGoogleIdTokenForSupabaseSession(idToken, accessToken, rawNonce);
-            syncSubscriptionStatusForSession(session).catch((syncError) => {
-              console.warn("Failed to sync subscription status after sign-in:", syncError);
-            });
-            resolve({ session, redirectUri: identityRedirectUri });
-          } catch (error) {
-            reject(error);
+          if (!idToken) {
+            reject(new Error("Missing ID Token in Google response."));
+            return;
           }
-        });
-      } catch (error) {
-        reject(error);
-      }
+
+          const session = await exchangeGoogleIdTokenForSupabaseSession(idToken, accessToken, rawNonce);
+          syncSubscriptionStatusForSession(session).catch((syncError) => {
+            console.warn("Failed to sync subscription status after sign-in:", syncError);
+          });
+          resolve({ session, redirectUri: identityRedirectUri });
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
   }
 
@@ -746,20 +731,6 @@ try {
     });
   }
 
-  function generateUuid() {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    const hex = createRandomHex(16);
-    return [
-      hex.slice(0, 8),
-      hex.slice(8, 12),
-      "4" + hex.slice(13, 16),
-      ((parseInt(hex.slice(16, 17), 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20),
-      hex.slice(20, 32)
-    ].join("-");
-  }
-
   function runSessionMutation(task) {
     const nextMutation = sessionMutationQueue.then(task, task);
     sessionMutationQueue = nextMutation.catch(() => {});
@@ -805,118 +776,6 @@ try {
       }
       return { cleared: true, reason: "refresh_token_invalid" };
     });
-  }
-
-  async function getOrCreateAnalyticsGuestId() {
-    const stored = await storageGet(ANALYTICS_GUEST_ID_KEY);
-    if (stored) {
-      return stored;
-    }
-    const guestId = generateUuid();
-    await storageSet({ [ANALYTICS_GUEST_ID_KEY]: guestId });
-    return guestId;
-  }
-
-  function normalizeAnalyticsQueue(value) {
-    return Array.isArray(value) ? value : [];
-  }
-
-  function normalizeTrackedOnceStore(value) {
-    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  }
-
-  function sanitizeAnalyticsEvent(event) {
-    if (!event || typeof event !== "object") {
-      return null;
-    }
-
-    const eventName = String(event.event_name || "");
-    if (!ANALYTICS_ALLOWED_EVENTS.has(eventName)) {
-      return null;
-    }
-
-    const platform = ANALYTICS_ALLOWED_PLATFORMS.has(event.platform) ? event.platform : "unknown";
-    const properties = event.properties && typeof event.properties === "object" && !Array.isArray(event.properties)
-      ? event.properties
-      : {};
-
-    return {
-      event_name: eventName,
-      platform,
-      client_timestamp: event.client_timestamp || new Date().toISOString(),
-      properties
-    };
-  }
-
-  function enqueueAnalyticsMutation(task) {
-    const run = analyticsMutationQueue.catch(() => {}).then(task);
-    analyticsMutationQueue = run.catch(() => {});
-    return run;
-  }
-
-  async function appendAnalyticsEvent(event) {
-    return true; // 注销埋点
-  }
-
-  async function postSupabaseFunction(path, accessToken, body) {
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null;
-
-    try {
-      const response = await fetch(SUPABASE_URL + path, {
-        method: "POST",
-        signal: controller ? controller.signal : undefined,
-        headers: {
-          apikey: SUPABASE_PUBLISHABLE_KEY,
-          Authorization: "Bearer " + (accessToken || SUPABASE_PUBLISHABLE_KEY),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          product_id: PRODUCT_ID,
-          product_slug: PRODUCT_SLUG,
-          product_name: PRODUCT_NAME,
-          ...(body || {})
-        })
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        const requestError = new Error(text || "Supabase request failed: " + response.status);
-        requestError.status = response.status;
-        throw requestError;
-      }
-
-      return response.status === 204 ? null : response.json();
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    }
-  }
-
-  async function flushAnalyticsQueue() {
-    return { ok: true, flushed: 0 }; // 注销埋点
-  }
-
-  async function identifyAnalyticsGuest(guestId) {
-    return { ok: true }; // 注销埋点
-  }
-
-  function scheduleAnalyticsFlush(delayMs) {
-    if (analyticsFlushTimeout) {
-      return;
-    }
-    analyticsFlushTimeout = setTimeout(() => {
-      analyticsFlushTimeout = null;
-      flushAnalyticsQueue().catch(() => {});
-    }, Math.max(0, Number(delayMs) || 0));
-    if (typeof analyticsFlushTimeout.unref === "function") {
-      analyticsFlushTimeout.unref();
-    }
-  }
-
-  function startAnalyticsFlushTimer() {
-    return; // 注销定时器
   }
 
   async function openSubscribePanel(source = "extension", planId = "yearly") {
@@ -1063,8 +922,6 @@ try {
     });
   }
 
-  startAnalyticsFlushTimer();
-
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message && message.type === "CHATVAULT_OPEN_SUBSCRIBE") {
       if (rejectUntrustedSender(sender, sendResponse)) return false;
@@ -1152,42 +1009,6 @@ try {
       return true;
     }
 
-    if (message && message.type === "CHATVAULT_ANALYTICS_TRACK") {
-      if (rejectUntrustedSender(sender, sendResponse)) return false;
-      appendAnalyticsEvent(message.event)
-        .then((queued) => {
-          sendResponse({ ok: Boolean(queued) });
-        })
-        .catch((error) => {
-          sendResponse({ ok: false, error: error.message || "Analytics queue failed." });
-        });
-      return true;
-    }
-
-    if (message && message.type === "CHATVAULT_ANALYTICS_FLUSH") {
-      if (rejectUntrustedSender(sender, sendResponse)) return false;
-      flushAnalyticsQueue()
-        .then((result) => {
-          sendResponse(result || { ok: true });
-        })
-        .catch((error) => {
-          sendResponse({ ok: false, error: error.message || "Analytics flush failed." });
-        });
-      return true;
-    }
-
-    if (message && message.type === "CHATVAULT_ANALYTICS_IDENTIFY") {
-      if (rejectUntrustedSender(sender, sendResponse)) return false;
-      identifyAnalyticsGuest(message.guestId)
-        .then((result) => {
-          sendResponse(result || { ok: true });
-        })
-        .catch((error) => {
-          sendResponse({ ok: false, error: error.message || "Analytics identify failed." });
-        });
-      return true;
-    }
-
     if (message && message.type === "CHATVAULT_CANCEL_IMAGE_FETCH") {
       if (rejectUntrustedSender(sender, sendResponse)) return false;
       const requestId = String(message.requestId || "");
@@ -1206,16 +1027,10 @@ try {
         try {
           const url = new URL(urlStr);
           const hostname = url.hostname.toLowerCase();
-          if (hostname === "chatgpt.com" || hostname === "chat.openai.com" || hostname === "claude.ai" || hostname === "gemini.google.com") {
-            return true;
-          }
-          if (hostname.endsWith(".oaiusercontent.com")) {
+          if (hostname === "gemini.google.com") {
             return true;
           }
           if (/^lh\d+\.googleusercontent\.com$/.test(hostname)) return true;
-          if (hostname === "images.anthropic.com" || hostname === "media.anthropic.com") {
-            return true;
-          }
           if (/^lh\d+\.google\.com$/.test(hostname)) {
             return true;
           }
@@ -1223,16 +1038,6 @@ try {
           return false;
         }
         return false;
-      };
-      const isTrustedCredentialedImageApi = (urlStr) => {
-        try {
-          const url = new URL(urlStr);
-          const hostname = url.hostname.toLowerCase();
-          const isInternalHost = hostname === "chatgpt.com" || hostname === "chat.openai.com" || hostname === "claude.ai";
-          return isInternalHost && (url.pathname.includes("/api/") || url.pathname.includes("/backend-api/"));
-        } catch (e) {
-          return false;
-        }
       };
 
       if (!isTrustedImageOrigin(message.url)) {
@@ -1256,10 +1061,6 @@ try {
         signal: controller ? controller.signal : undefined
       };
       
-      if (isTrustedCredentialedImageApi(message.url)) {
-        fetchOpts.credentials = "include";
-      }
-
       fetch(message.url, fetchOpts)
         .then(async response => {
           if (!response.ok) throw new Error("HTTP error " + response.status);

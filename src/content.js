@@ -50,6 +50,7 @@
   let usageStateLoaded = false;
   const ENTITLEMENT_SERVER_CHECK_TTL_MS = 5 * 60 * 1000;
   let lastEntitlementServerCheckAt = 0;
+  let lastVerifiedEntitlementFingerprint = "";
   // Session 失效冷却期：检测到 refresh token 失效后，短期内不再重复尝试刷新，
   // 避免每次导出都触发一次注定失败的 refresh 请求。用户重新登录后会清零。
   const SESSION_REFRESH_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
@@ -134,8 +135,15 @@
 
   function localQuotaAllows(count) {
     const requested = Math.max(1, Number(count) || 1);
-    if (entitlements?.canUseExport && currentUserProfile) {
-      return entitlements.canUseExport(currentUserProfile, dailyUsage || {}, requested);
+    if (isProUser && hasFreshEntitlementServerVerification()) {
+      return true;
+    }
+    if (entitlements?.canUseExport) {
+      const freeProfile = entitlements.normalizeProfile({
+        ...(currentUserProfile || {}),
+        plan: "free"
+      });
+      return entitlements.canUseExport(freeProfile, dailyUsage || {}, requested);
     }
     const used = Number(dailyUsage?.exportedChats || 0);
     const limit = Number(dailyUsage?.limit || 0) || 3;
@@ -640,7 +648,7 @@
     currentSession = null;
     currentUserProfile = null;
     isProUser = false;
-    lastEntitlementServerCheckAt = 0;
+    clearEntitlementServerVerification();
     dailyUsage = await getLocalUsageSnapshot() || dailyUsage;
     usageStateLoaded = true;
     invalidatePopupStateCache();
@@ -805,32 +813,79 @@
   }
 
   function hasKnownExhaustedFreeQuota() {
-    if (isProUser) {
+    if (hasFreshEntitlementServerVerification()) {
       return false;
     }
-    if (currentUserProfile && entitlements.isPro(currentUserProfile)) {
-      return false;
-    }
-    const profile = currentUserProfile || entitlements.normalizeProfile({ plan: "free" });
+    const profile = entitlements.normalizeProfile({
+      ...(currentUserProfile || {}),
+      plan: "free"
+    });
     return entitlements.getRemainingFreeExports(profile, dailyUsage) <= 0;
   }
 
   function getLocalFreeQuotaAllowed(count) {
-    if (isProUser || entitlements?.isPro?.(currentUserProfile)) {
+    if (hasFreshEntitlementServerVerification()) {
       return true;
     }
-    const profile = currentUserProfile || entitlements.normalizeProfile({ plan: "free" });
+    const profile = entitlements.normalizeProfile({
+      ...(currentUserProfile || {}),
+      plan: "free"
+    });
     return entitlements.canUseExport(profile, dailyUsage, count);
+  }
+
+  function getCurrentEntitlementFingerprint() {
+    const sessionUserId = String(currentSession?.user?.id || "");
+    const sessionEmail = String(currentSession?.user?.email || "").trim().toLowerCase();
+    const profile = currentUserProfile || {};
+    const profileUserId = String(profile.id || "");
+    const profileEmail = String(profile.email || "").trim().toLowerCase();
+    const identity = sessionUserId || profileUserId || sessionEmail || profileEmail;
+    if (!identity) return "";
+    return [
+      identity,
+      String(profile.plan || "free").trim().toLowerCase(),
+      String(profile.updated_at || "")
+    ].join("|");
+  }
+
+  function clearEntitlementServerVerification() {
+    lastEntitlementServerCheckAt = 0;
+    lastVerifiedEntitlementFingerprint = "";
+  }
+
+  function markEntitlementServerVerified(verifiedAt = Date.now()) {
+    const fingerprint = getCurrentEntitlementFingerprint();
+    if (!fingerprint) {
+      clearEntitlementServerVerification();
+      return;
+    }
+    lastEntitlementServerCheckAt = verifiedAt;
+    lastVerifiedEntitlementFingerprint = fingerprint;
+  }
+
+  function hasFreshEntitlementServerVerification(now = Date.now()) {
+    const fingerprint = getCurrentEntitlementFingerprint();
+    return Boolean(
+      fingerprint
+      && fingerprint === lastVerifiedEntitlementFingerprint
+      && lastEntitlementServerCheckAt > 0
+      && now - lastEntitlementServerCheckAt < ENTITLEMENT_SERVER_CHECK_TTL_MS
+    );
   }
 
   // 本地配额校验：服务端不可达或 schema 缓存未就绪时作为兜底，避免阻塞正常导出。
   // 返回结构与 syncVerifiedExportEntitlement 对齐，调用方无需感知差异。
   function getLocalExportAccessResult(count) {
     const requestedCount = Math.max(1, Number(count) || 1);
-    const profile = currentUserProfile || entitlements.normalizeProfile({ plan: "free" });
-    const allowed = isProUser
-      || entitlements?.isPro?.(profile)
-      || entitlements.canUseExport(profile, dailyUsage, requestedCount);
+    const verifiedPro = isProUser && hasFreshEntitlementServerVerification();
+    const profile = verifiedPro
+      ? currentUserProfile
+      : entitlements.normalizeProfile({
+        ...(currentUserProfile || {}),
+        plan: "free"
+      });
+    const allowed = verifiedPro || entitlements.canUseExport(profile, dailyUsage, requestedCount);
     return {
       ok: true,
       allowed: Boolean(allowed),
@@ -853,20 +908,15 @@
     if (isSessionRefreshInCooldown) {
       return getLocalExportAccessResult(count);
     }
-    const now = Date.now();
-    const isCacheFresh = now - lastEntitlementServerCheckAt < ENTITLEMENT_SERVER_CHECK_TTL_MS;
-    if (isProUser && isCacheFresh) {
+    if (isProUser && hasFreshEntitlementServerVerification()) {
       return { ok: true, allowed: true, serverVerified: false };
     }
     try {
       const result = await syncVerifiedExportEntitlement(count, { consume: false });
-      if (result && result.ok && result.serverVerified) {
-        lastEntitlementServerCheckAt = now;
-      }
       return result;
     } catch (error) {
-      if (isProUser) {
-        console.warn("Pro entitlement server check failed, using cached Pro state:", error);
+      if (isProUser && hasFreshEntitlementServerVerification()) {
+        console.warn("Pro entitlement server check failed, using the recently server-verified state:", error);
         return { ok: true, allowed: true, serverVerified: false };
       }
       throw error;
@@ -979,8 +1029,27 @@
       if (syncedProfile) {
         currentUserProfile = syncedProfile;
         isProUser = entitlements.isPro(currentUserProfile);
+      } else if (isProUser) {
+        // 服务端未返回 profile 时只能确认本次额度请求，不能据此确认缓存中的 Pro 套餐。
+        currentUserProfile = entitlements.normalizeProfile({
+          ...(currentUserProfile || {}),
+          id: currentUserProfile?.id || session.user?.id || "",
+          email: currentUserProfile?.email || session.user?.email || "",
+          plan: "free"
+        });
+        isProUser = false;
       }
       const serverAllowed = result?.ok !== false && result?.allowed !== false;
+      if (!serverAllowed && isProUser) {
+        currentUserProfile = entitlements.normalizeProfile({
+          ...(currentUserProfile || {}),
+          id: currentUserProfile?.id || session.user?.id || "",
+          email: currentUserProfile?.email || session.user?.email || "",
+          plan: "free"
+        });
+        isProUser = false;
+      }
+      markEntitlementServerVerified();
       const serverConsumed = consume && serverAllowed;
       const serverUsage = result?.usage || result?.data?.usage || null;
       if (serverUsage) {
@@ -1034,7 +1103,7 @@
 
   async function recordSuccessfulExportUsage(count, options = {}) {
     const amount = Math.max(1, Number(count) || 1);
-    if (isProUser || entitlements?.isPro?.(currentUserProfile)) {
+    if (isProUser && hasFreshEntitlementServerVerification()) {
       return { ok: true, serverVerified: false, usage: dailyUsage };
     }
 
@@ -1090,7 +1159,7 @@
   }
 
   function canUseBatchExportLocally() {
-    return Boolean(isProUser || entitlements?.isPro?.(currentUserProfile));
+    return Boolean(isProUser && hasFreshEntitlementServerVerification());
   }
 
   function showBatchExportUpgradePrompt() {
@@ -3982,7 +4051,7 @@
 
       // 服务器预检：避免用户花费时间导出后才发现额度不足
       const preCheck = await verifySignedInExportAccess(total);
-      if (!preCheck.allowed) {
+      if (!preCheck.ok || !preCheck.allowed || !canUseBatchExportLocally()) {
         throw new Error(preCheck.error || tx(
           "content_batch_quota_exceeded",
           "Daily export limit reached. Upgrade to Pro for unlimited exports.",
@@ -4126,19 +4195,11 @@
         failureCount: failures.length,
         items: batchResultItems
       });
-      globalThis.CHATVAULT_ANALYTICS?.track("export_success", {
-        platform: getCurrentPlatformId() || "gemini",
-        properties: { format, source: "batch_export", count: preparedFiles.length }
-      });
     } catch (error) {
       if (error?.message === "Export cancelled." || error?.name === "AbortError") {
         showPageToast(t("batch_export_cancelled", isChineseUi() ? "导出已取消。" : "Export cancelled."));
       } else {
         showPageToast(tx("content_export_failed_message", "Export failed: $1", "导出失败：$1", error.message || "Export failed."));
-        globalThis.CHATVAULT_ANALYTICS?.track("export_failed", {
-          platform: getCurrentPlatformId() || "gemini",
-          properties: { format, source: "batch_export", error_category: "export_build" }
-        });
       }
     } finally {
       hideExportProgress();
@@ -4179,7 +4240,8 @@
 
     try {
       await loadState({ localOnly: true, skipVerify: true });
-      if (!canUseBatchExportLocally()) {
+      const preCheck = await verifySignedInExportAccess(selectedItems.length);
+      if (!preCheck.ok || !preCheck.allowed || !canUseBatchExportLocally()) {
         showBatchExportUpgradePrompt();
         throw new Error("Batch export requires Pro.");
       }
@@ -4349,9 +4411,13 @@
 
     try {
       await loadState({ localOnly: true, skipVerify: true });
-      if (!canUseBatchExportLocally()) {
-        showBatchExportUpgradePrompt();
-        throw new Error("Batch export requires Pro.");
+      const preCheck = await verifySignedInExportAccess(selectedItems.length);
+      if (!preCheck.ok || !preCheck.allowed || !canUseBatchExportLocally()) {
+        throw new Error(preCheck.error || tx(
+          "content_batch_quota_exceeded",
+          "Daily export limit reached. Upgrade to Pro for unlimited exports.",
+          "已达每日导出上限，升级 Pro 可无限导出。"
+        ));
       }
       const coordinator = await loadObsidianCoordinator();
       const status = await coordinator.getObsidianStatus();
@@ -4362,16 +4428,6 @@
       if (status.directoriesValid === false) throw new Error(tx("obsidian_repair_folders", "Repair the configured Obsidian folders first.", "请先修复 Obsidian 配置目录。"));
       if (status.activeJob) throw new Error(tx("obsidian_job_running", "Another Obsidian sync is already running.", "已有 Obsidian 同步任务正在运行。"));
       await exporter.preload();
-
-      // 预检剩余额度是否足够，避免 Free 用户通过批量入口绕过每日额度限制
-      const preCheck = await verifySignedInExportAccess(selectedItems.length);
-      if (!preCheck.allowed) {
-        throw new Error(preCheck.error || tx(
-          "content_batch_quota_exceeded",
-          "Daily export limit reached. Upgrade to Pro for unlimited exports.",
-          "已达每日导出上限，升级 Pro 可无限导出。"
-        ));
-      }
 
       const settings = {
         ...exportSettings,
@@ -4479,11 +4535,6 @@
       }
 
       finishObsidianBatch();
-      const totals = getObsidianBatchTotals();
-      globalThis.CHATVAULT_ANALYTICS?.track("export_success", {
-        platform: getCurrentPlatformId() || "gemini",
-        properties: { format: "obsidian", source: "batch_sync", count: totals.successCount, failures: totals.failureCount }
-      });
     } catch (error) {
       const cancelled = signal.aborted || error?.name === "AbortError";
       selectedItems.forEach((item) => {
@@ -4580,7 +4631,7 @@
     try {
       await loadState({ localOnly: true, skipVerify: true });
       if (isBatchPreflightCancelled()) return;
-      if (!isProUser && currentSession?.access_token) {
+      if (currentSession?.access_token) {
         const entitlementPreflight = await verifySignedInExportAccess(1);
         if (isBatchPreflightCancelled()) return;
         if (!entitlementPreflight.ok) {
@@ -5907,14 +5958,6 @@
       return;
     }
 
-    const entitlementIssue = getEntitlementIssue(settingsForExport, presetForExport, currentUserProfile, formatForExport);
-    if (entitlementIssue) {
-      hideExportProgress();
-      clearCurrentExportController();
-      showUpgradePrompt(entitlementIssue);
-      return;
-    }
-
     if (isSingleExport) {
       renderExportProgress(formatForExport, {
         mode: "single",
@@ -5937,6 +5980,16 @@
       hideExportProgress();
       clearCurrentExportController();
       showUpgradePrompt(FREE_QUOTA_EXHAUSTED_MESSAGE);
+      return;
+    }
+
+    // 先完成服务端权益校验，再决定专业模板/主题等本地功能权限。
+    // 不能直接信任 storage 中的 Pro 缓存，否则本地篡改可绕过功能门槛。
+    const entitlementIssue = getEntitlementIssue(settingsForExport, presetForExport, currentUserProfile, formatForExport);
+    if (entitlementIssue) {
+      hideExportProgress();
+      clearCurrentExportController();
+      showUpgradePrompt(entitlementIssue);
       return;
     }
     if (hasKnownExhaustedFreeQuota()) {
@@ -6210,23 +6263,18 @@
         setExportProgress(tx("content_progress_checking_export_access", "Preparing export...", "正在准备导出..."), 90);
         const entitlementVerification = await syncVerifiedExportEntitlement(1, { consume: false });
         if (!entitlementVerification.ok) {
-          // 服务端校验失败时，若用户本地缓存显示 Pro，仍允许继续（网络问题不应阻塞已付费用户）
-          if (!isProUser) {
+          // 只有本次页面会话中近期服务端确认过、且身份/套餐指纹未变化的 Pro
+          // 才能在瞬时网络失败时继续；storage 中单独出现的 Pro 缓存不可信。
+          if (!isProUser || !hasFreshEntitlementServerVerification()) {
             throw new Error(entitlementVerification.error || tx("content_entitlement_verify_failed", "Could not verify your export entitlement. Check your connection and try again.", "无法验证您的导出权益，请检查网络后重试。"));
           }
-          console.warn("Pro entitlement verification failed; allowing export based on cached state.", entitlementVerification.error);
+          console.warn("Pro entitlement verification failed; using the recently server-verified state.", entitlementVerification.error);
         } else if (!entitlementVerification.allowed) {
-          // 服务端返回不允许：可能是 Free 额度耗尽，或 Pro 订阅已过期且本地缓存未更新
-          if (isProUser && entitlementVerification.profile) {
-            // 服务端已将 profile 同步为 Free，更新本地状态
-            isProUser = false;
-          }
-          if (!isProUser) {
-            hideExportProgress();
-            clearCurrentExportController();
-            showUpgradePrompt(FREE_QUOTA_EXHAUSTED_MESSAGE);
-            return;
-          }
+          // 服务端明确拒绝时必须以服务端结果为准，不能让旧 Pro 缓存覆盖。
+          hideExportProgress();
+          clearCurrentExportController();
+          showUpgradePrompt(FREE_QUOTA_EXHAUSTED_MESSAGE);
+          return;
         }
       }
 
@@ -6268,10 +6316,6 @@
         return;
       }
       if (!saveResult || !saveResult.ok) {
-        globalThis.CHATVAULT_ANALYTICS?.track("export_failed", {
-          platform: metadata.platform,
-          properties: { format: formatForExport, source: "current_chat", error_category: "export_build" }
-        });
         throw new Error(saveResult?.error || "Save dialog is not available.");
       }
 
@@ -6323,10 +6367,6 @@
         if (bar) bar.classList.remove("active");
       }
 
-      globalThis.CHATVAULT_ANALYTICS?.track("export_success", {
-        platform: metadata.platform,
-        properties: { format: formatForExport, source: "current_chat" }
-      });
       if (copyToClipboard) {
         showPageToast(tx("content_json_copied", "JSON copied to clipboard.", "JSON 已复制到剪贴板。"));
       }
@@ -6373,10 +6413,6 @@
           showPageToast(tx("content_export_failed_message", "Export failed: $1", "导出失败：$1", e.message || t("toast_export_failed", isChineseUi() ? "导出失败。" : "Export failed.")));
         }
 
-        globalThis.CHATVAULT_ANALYTICS?.track("export_failed", {
-          platform: exporter.detectPlatform(),
-          properties: { format: formatForExport, source: "current_chat", error_category: "export_build" }
-        });
       } else {
         hideExportProgress();
         showPageToast(t("batch_export_cancelled", isChineseUi() ? "导出已取消。" : "Export cancelled."));
@@ -6533,20 +6569,12 @@
       }
       hideExportProgress();
       showObsidianResultDialog(result);
-      globalThis.CHATVAULT_ANALYTICS?.track("export_success", {
-        platform: exporter.detectPlatform(),
-        properties: { format: "obsidian", source: "current_chat", scope }
-      });
     } catch (error) {
       hideExportProgress();
       if (signal.aborted || error?.name === "AbortError") {
         showPageToast(tx("obsidian_sync_cancelled", "Obsidian sync cancelled.", "Obsidian 同步已取消。"));
       } else {
         showPageToast(tx("obsidian_sync_failed", "Obsidian sync failed: $1", "Obsidian 同步失败：$1", error?.message || "Obsidian sync failed."));
-        globalThis.CHATVAULT_ANALYTICS?.track("export_failed", {
-          platform: exporter.detectPlatform(),
-          properties: { format: "obsidian", source: "current_chat", error_category: error?.code || "sync" }
-        });
       }
     } finally {
       activeObsidianSingleSync = false;

@@ -115,6 +115,25 @@ test("product entitlement cache is namespaced, encrypted, and account-scoped", a
   assert.equal(await entitlements.getCachedState(), null);
 });
 
+test("plaintext or malformed entitlement cache never grants Pro access", async () => {
+  storageMap.clear();
+  storageMap.set(entitlements.ENTITLEMENT_STATE_CACHE_KEY, {
+    cachedAt: Date.now(),
+    profile: {
+      id: "user-1",
+      email: "vip@test.com",
+      plan: "pro"
+    },
+    usage: {
+      date: entitlements.getTodayString(),
+      exportedChats: 0
+    }
+  });
+
+  assert.equal(await entitlements.getCachedState(), null);
+  assert.equal(storageMap.has(entitlements.ENTITLEMENT_STATE_CACHE_KEY), false);
+});
+
 test("billing and entitlement refresh call product-scoped Edge Functions", () => {
   const contentSource = readText("../src/content.js");
   const popupSource = readText("../src/popup.js");
@@ -267,8 +286,8 @@ test("export entitlement verification falls back to local quota gates", () => {
     assert.notEqual(index, -1, `missing anchor in performExport source: ${name}`);
   }
   assert.ok(anchors.localPreflight < anchors.renderProgress, "localEntitlementPreflight must precede renderExportProgress");
-  assert.ok(anchors.entitlementIssue < anchors.renderProgress, "entitlementIssue must precede renderExportProgress");
   assert.ok(anchors.renderProgress < anchors.verifySignedIn, "renderExportProgress must precede verifySignedInExportAccess");
+  assert.ok(anchors.verifySignedIn < anchors.entitlementIssue, "server verification must precede premium entitlement checks");
 
   const batchAnchors = {
     setBatchExportingUi: batchSource.indexOf("setBatchExportingUi(true)"),
@@ -365,6 +384,8 @@ test("product backend contract is present for local deployment and review", () =
 
   const migration = readText("../supabase/migrations/202607020001_product_export_isolation.sql");
   const checkout = readText("../supabase/functions/product-create-checkout-session/index.ts");
+  const paymentWebhook = readText("../supabase/functions/payment-webhook/index.ts");
+  const productPaymentWebhook = readText("../supabase/functions/product-payment-webhook/index.ts");
   const paddle = readText("../supabase/functions/_shared/product-paddle.ts");
   const plans = readText("../supabase/functions/_shared/product-plans.ts");
   const config = readText("../supabase/config.toml");
@@ -376,6 +397,10 @@ test("product backend contract is present for local deployment and review", () =
   assert.match(checkout, /isPaddleCustomerPermissionError/);
   assert.match(checkout, /PADDLE_REQUIRE_CUSTOMER_BINDING/);
   assert.match(checkout, /"Paddle checkout is temporarily unavailable\. Please try again later\."/);
+  assert.doesNotMatch(paymentWebhook, /user_id:\s*info\.userId/);
+  assert.doesNotMatch(productPaymentWebhook, /user_id:\s*info\.userId/);
+  assert.equal((paymentWebhook.match(/user_id:\s*null/g) || []).length >= 2, true);
+  assert.equal((productPaymentWebhook.match(/user_id:\s*null/g) || []).length >= 2, true);
   assert.match(plans, /"chatgpt-export"/);
   assert.match(plans, /"claude-export"/);
   assert.match(plans, /"gemini-export"/);

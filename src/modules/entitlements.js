@@ -303,7 +303,7 @@
     const cryptoRef = getCacheCrypto();
     const key = await getEntitlementCacheCryptoKey();
     if (!cryptoRef || !key || typeof TextEncoder !== "function") {
-      return snapshot;
+      return null;
     }
 
     try {
@@ -318,7 +318,7 @@
         payload: bytesToBase64(new Uint8Array(encrypted))
       };
     } catch (error) {
-      return snapshot;
+      return null;
     }
   }
 
@@ -326,7 +326,8 @@
     if (!isEncryptedCachedEntitlementState(value)) {
       // 拒绝明文/非加密格式的缓存，强制从服务端重新拉取
       // 防止攻击者通过 chrome.storage.local.set 写入明文 {plan:"pro"} 绕过验证
-      return value;
+      // 旧版本 background.js 写入的明文缓存会在此被丢弃，由 getCachedState 返回 null 触发服务端重拉
+      return null;
     }
 
     const cryptoRef = getCacheCrypto();
@@ -424,15 +425,18 @@
     const rawStored = await storageGet(ENTITLEMENT_STATE_CACHE_KEY);
     if (!rawStored) return null;
 
-    const wasPlaintext = !isEncryptedCachedEntitlementState(rawStored);
+    // 明文/非加密格式的缓存一律丢弃（decryptCachedEntitlementState 返回 null），
+    // 强制下一次走服务端校验。不再做"明文迁移"——迁移本身会让明文 {plan:"pro"} 在本次调用中生效。
     const snapshot = await decryptCachedEntitlementState(rawStored);
     const cachedState = normalizeCachedEntitlementState(snapshot);
-    if (!cachedState) return null;
+    if (!cachedState) {
+      // 顺手清掉残留的明文/非法缓存，避免下次再走一遍解密失败路径
+      try { await storageRemove(ENTITLEMENT_STATE_CACHE_KEY); } catch (_e) {}
+      return null;
+    }
 
     const today = getTodayString();
-    // 历史问题：旧版本 background.js 写入明文缓存，攻击者可在 DevTools 直接编辑。
-    // 修复：检测到明文格式时立即迁移到加密格式，避免明文缓存长期留存。
-    if (wasPlaintext || shouldMigrateLegacyDate(snapshot?.usage, today)) {
+    if (shouldMigrateLegacyDate(snapshot?.usage, today)) {
       const migratedSnapshot = {
         cachedAt: snapshot?.cachedAt || Date.now(),
         profile: snapshot?.profile || {},
@@ -455,7 +459,13 @@
       sessionUser: getSessionUserForCache(value, profile)
     };
 
-    await storageSet(ENTITLEMENT_STATE_CACHE_KEY, await encryptCachedEntitlementState(snapshot));
+    const encryptedSnapshot = await encryptCachedEntitlementState(snapshot);
+    if (isEncryptedCachedEntitlementState(encryptedSnapshot)) {
+      await storageSet(ENTITLEMENT_STATE_CACHE_KEY, encryptedSnapshot);
+    } else {
+      // 加密能力不可用时不降级写入明文权益，避免把可编辑的 Pro 状态当作可信缓存。
+      await storageRemove(ENTITLEMENT_STATE_CACHE_KEY);
+    }
     return normalizeCachedEntitlementState(snapshot);
   }
 

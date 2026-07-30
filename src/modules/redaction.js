@@ -8,8 +8,9 @@
       replacement: "[REDACTED: EMAIL]"
     },
     phone: {
-      // 匹配国际和常见电话格式，如 +86 138-0000-0000, 13800000000, +1 123-456-7890 等
-      regex: /(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b|\b1[3-9]\d{9}\b/g,
+      // 匹配带国际区号的 8-15 位号码，以及常见 10 位/中国大陆 11 位格式。
+      // 两侧禁止紧邻数字，避免从时间戳、卡号、订单号尾部截取 10/11 位误脱敏。
+      regex: /(?<!\d)\+(?:[().\s-]?\d){8,15}(?!\d)|(?<!\d)\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)|(?<!\d)1[3-9]\d{9}(?!\d)/g,
       replacement: "[REDACTED: PHONE]"
     },
     api_key: {
@@ -18,9 +19,11 @@
       replacement: "[REDACTED: API_KEY]"
     },
     credit_card_like: {
-      // 匹配 13 到 19 位的信用卡号
-      regex: /\b\d{4}[-.\s]?\d{4}[-.\s]?\d{4}[-.\s]?\d{4}\b|\b\d{13,19}\b/g,
-      replacement: "[REDACTED: CREDIT_CARD]"
+      // 先收集 13-19 位候选，再通过 Luhn、重复数字和卡组织前缀校验降低误伤。
+      // 带分隔符的号码也支持 4-6-5（Amex）等非 4-4-4-4 分组。
+      regex: /(?<!\d)(?:\d[ .-]?){12,18}\d(?!\d)/g,
+      replacement: "[REDACTED: CREDIT_CARD]",
+      validate: isPlausiblePaymentCard
     },
     sensitive_url_param: {
       // 匹配 URL 中诸如 token=xxx，secret=xxx 的查询参数
@@ -28,6 +31,60 @@
       replacement: "REDACTED_PARAM"
     }
   };
+
+  function luhnValid(match) {
+    // Luhn 校验：提取所有数字，按位加权求和，能被 10 整除即为有效卡号
+    const digits = String(match || "").replace(/\D/g, "");
+    if (digits.length < 13 || digits.length > 19) return false;
+    let sum = 0;
+    let shouldDouble = false;
+    for (let i = digits.length - 1; i >= 0; i--) {
+      let d = parseInt(digits.charAt(i), 10);
+      if (shouldDouble) {
+        d *= 2;
+        if (d > 9) d -= 9;
+      }
+      sum += d;
+      shouldDouble = !shouldDouble;
+    }
+    return sum % 10 === 0;
+  }
+
+  function hasKnownCardPrefix(digits) {
+    if (/^4/.test(digits)) return true; // Visa
+    if (/^(?:34|37)/.test(digits)) return true; // American Express
+    if (/^62/.test(digits)) return true; // UnionPay
+    if (/^3(?:0[0-5]|[68])/.test(digits)) return true; // Diners Club
+
+    const firstTwo = Number(digits.slice(0, 2));
+    const firstFour = Number(digits.slice(0, 4));
+    const firstSix = Number(digits.slice(0, 6));
+    if ((firstTwo >= 51 && firstTwo <= 55) || (firstFour >= 2221 && firstFour <= 2720)) {
+      return true; // Mastercard
+    }
+    if (
+      digits.startsWith("6011")
+      || firstTwo === 65
+      || (firstFour >= 6440 && firstFour <= 6499)
+      || (firstSix >= 622126 && firstSix <= 622925)
+    ) {
+      return true; // Discover
+    }
+    return firstFour >= 3528 && firstFour <= 3589; // JCB
+  }
+
+  function isPlausiblePaymentCard(match) {
+    const candidate = String(match || "").trim();
+    const digits = candidate.replace(/\D/g, "");
+    if (digits.length < 13 || digits.length > 19) return false;
+    if (/^(\d)\1+$/.test(digits) || !luhnValid(digits)) return false;
+
+    if (/[ .-]/.test(candidate)) {
+      const groups = candidate.split(/[ .-]+/);
+      return groups.length >= 3 && groups.every((group) => /^\d{3,6}$/.test(group));
+    }
+    return hasKnownCardPrefix(digits);
+  }
 
   function redactText(text, options, summary) {
     if (!text || typeof text !== "string") {
@@ -39,7 +96,7 @@
     // 1. 应用内置规则
     Object.keys(RULES).forEach((ruleKey) => {
       const rule = RULES[ruleKey];
-      
+
       if (ruleKey === "sensitive_url_param") {
         result = result.replace(rule.regex, (match, paramNameWithEquals, paramValue) => {
           summary.totalMatches++;
@@ -57,6 +114,10 @@
         });
       } else {
         result = result.replace(rule.regex, (match) => {
+          // validate 钩子（如信用卡 Luhn 校验）失败则保留原文，避免误脱敏
+          if (typeof rule.validate === "function" && !rule.validate(match)) {
+            return match;
+          }
           summary.totalMatches++;
           summary.byType[ruleKey] = (summary.byType[ruleKey] || 0) + 1;
           return rule.replacement;

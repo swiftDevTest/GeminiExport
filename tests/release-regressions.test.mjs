@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 function readText(path) {
   return readFileSync(new URL(path, import.meta.url), "utf8");
@@ -92,4 +92,64 @@ test("batch result rows use per-file save outcomes", () => {
   assert.doesNotMatch(resultBlock, /preparedFiles\.map/);
   assert.match(contentSource, /status: "saved"/);
   assert.match(contentSource, /status: "failed"/);
+});
+
+test("server-verified Pro fallback is bound to the current entitlement fingerprint", () => {
+  const contentSource = readText("../src/content.js");
+
+  assert.match(contentSource, /lastVerifiedEntitlementFingerprint/);
+  assert.match(contentSource, /fingerprint === lastVerifiedEntitlementFingerprint/);
+  assert.match(contentSource, /isProUser && hasFreshEntitlementServerVerification\(\)/);
+  assert.match(contentSource, /if \(!isProUser \|\| !hasFreshEntitlementServerVerification\(\)\)/);
+  assert.match(
+    contentSource,
+    /function canUseBatchExportLocally\(\) \{\s*return Boolean\(isProUser && hasFreshEntitlementServerVerification\(\)\)/
+  );
+  assert.doesNotMatch(contentSource, /allowing export based on cached state/);
+
+  for (const functionName of [
+    "runInPageBatchExport",
+    "runInPageBatchNotionSync",
+    "runInPageBatchObsidianSync"
+  ]) {
+    const start = contentSource.indexOf(`async function ${functionName}`);
+    const nextFunction = contentSource.indexOf("\n  async function ", start + 1);
+    const source = contentSource.slice(start, nextFunction === -1 ? undefined : nextFunction);
+    assert.notEqual(start, -1, `${functionName} must exist`);
+    assert.match(source, /verifySignedInExportAccess\(/, `${functionName} must verify server entitlement`);
+    assert.match(source, /canUseBatchExportLocally\(\)/, `${functionName} must require verified Pro`);
+  }
+});
+
+test("disabled analytics implementation and callers are fully removed", () => {
+  const manifest = readJson("../manifest.json");
+  const packageJson = readJson("../package.json");
+  const contentSource = readText("../src/content.js");
+  const backgroundSource = readText("../src/background.js");
+  const contentScripts = (manifest.content_scripts || []).flatMap((entry) => entry.js || []);
+
+  assert.equal(contentScripts.includes("src/modules/analytics.js"), false);
+  assert.equal(
+    existsSync(new URL("../src/modules/analytics.js", import.meta.url)),
+    false
+  );
+  assert.doesNotMatch(packageJson.scripts.check, /modules\/analytics\.js/);
+  assert.doesNotMatch(contentSource, /CHATVAULT_ANALYTICS/);
+  assert.doesNotMatch(backgroundSource, /CHATVAULT_ANALYTICS/);
+});
+
+test("background hardening keeps OAuth errors observable and host fallback product-scoped", () => {
+  const backgroundSource = readText("../src/background.js");
+  const manifest = readJson("../manifest.json");
+  const firstResources = manifest.web_accessible_resources?.[0]?.resources || [];
+
+  assert.match(backgroundSource, /async function startGoogleOAuthSessionInternal/);
+  assert.doesNotMatch(backgroundSource, /new Promise\s*\(\s*async/);
+  assert.match(backgroundSource, /Failed to import product-config\.js/);
+  assert.match(backgroundSource, /Failed to import supabase-config\.js/);
+  assert.match(backgroundSource, /: \["gemini\.google\.com"\]/);
+  assert.doesNotMatch(backgroundSource, /chatgpt\.com|chat\.openai\.com|claude\.ai|oaiusercontent|anthropic\.com/);
+  assert.match(backgroundSource, /\[ENTITLEMENT_STATE_CACHE_KEY\]: null/);
+  assert.equal(firstResources.includes("images/*"), true);
+  assert.equal(firstResources.includes("images/*.png"), false);
 });

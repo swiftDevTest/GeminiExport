@@ -65,7 +65,9 @@ async function insertWebhookEvent(event: Record<string, unknown>, info: ReturnTy
       paddle_subscription_id: info.subscriptionId,
       paddle_transaction_id: info.transactionId,
       paddle_price_id: info.priceId,
-      user_id: info.userId,
+      // custom_data is external input and can contain a stale/deleted user id.
+      // Keep the audit insert independent from the FK until ownership is checked.
+      user_id: null,
       processed,
       ignored,
       payload: event,
@@ -89,7 +91,9 @@ async function tryAcquireWebhookLock(event: Record<string, unknown>, info: Retur
       paddle_subscription_id: info.subscriptionId,
       paddle_transaction_id: info.transactionId,
       paddle_price_id: info.priceId,
-      user_id: info.userId,
+      // User resolution is performed by the handlers after the idempotency lock.
+      // A stale custom_data user id must not prevent Paddle retries from running.
+      user_id: null,
       processed: false,
       ignored: false,
       payload: event,

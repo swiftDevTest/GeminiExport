@@ -68,7 +68,10 @@ async function insertWebhookEvent(event: Record<string, unknown>, info: ReturnTy
       paddle_subscription_id: info.subscriptionId,
       paddle_transaction_id: info.transactionId,
       paddle_price_id: info.priceId,
-      user_id: info.userId,
+      // custom_data comes from the webhook payload and may reference a deleted,
+      // stale, or otherwise invalid user. Do not write it into an FK-constrained
+      // audit row before the handlers have validated ownership.
+      user_id: null,
       processed,
       ignored,
       payload: event,
@@ -91,7 +94,9 @@ async function tryAcquireWebhookLock(event: Record<string, unknown>, info: Retur
       paddle_subscription_id: info.subscriptionId,
       paddle_transaction_id: info.transactionId,
       paddle_price_id: info.priceId,
-      user_id: info.userId,
+      // The lock must be acquirable even when a signed Paddle event contains a
+      // stale user id. User resolution and ownership checks happen afterwards.
+      user_id: null,
       processed: false,
       ignored: false,
       payload: event,
