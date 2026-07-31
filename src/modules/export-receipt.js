@@ -47,11 +47,6 @@
       format: String(metadata.format || "pdf"),
       mode: String(metadata.mode || "conversation"),
       messageCount: Number(metadata.messageCount) || 0,
-      redaction: {
-        enabled: Boolean(metadata.redaction?.enabled),
-        totalMatches: Number(metadata.redaction?.totalMatches) || 0,
-        byType: metadata.redaction?.byType || {}
-      },
       localGeneration: true,
       usesConversionServer: false,
       file: {

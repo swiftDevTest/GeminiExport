@@ -90,25 +90,6 @@ test("manifest exposes only the registered platform extractor", () => {
   assert.deepEqual(getExposedExtractorResources(manifest), registryExtractors);
 });
 
-test("content_scripts include redaction module and content.js invokes redactMessages", () => {
-  const manifest = readJson("../manifest.json");
-  const contentScripts = (manifest.content_scripts || []).flatMap((entry) => entry.js || []);
-
-  // 验证 redaction.js 在 content_scripts 列表中
-  assert.ok(
-    contentScripts.includes("src/modules/redaction.js"),
-    "src/modules/redaction.js must be listed in content_scripts"
-  );
-
-  // 验证 content.js 源码中实际调用了 redaction.redactMessages
-  const contentSource = readText("../src/content.js");
-  assert.match(
-    contentSource,
-    /redaction\.redactMessages\s*\(/,
-    "content.js must call redaction.redactMessages in the export pipeline"
-  );
-});
-
 test("every content_scripts entry and web_accessible_resource exists on disk", () => {
   const manifest = readJson("../manifest.json");
 

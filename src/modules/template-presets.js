@@ -14,8 +14,7 @@
         show_platform_name: true,
         show_role_labels: true,
         show_export_time: true,
-        include_source_url: false,
-        redaction_enabled: false
+        include_source_url: false
       }
     },
     {
@@ -31,7 +30,6 @@
         show_role_labels: false,
         show_export_time: true,
         include_source_url: false,
-        redaction_enabled: false,
         include_prompt_appendix: false,
         generate_toc: true
       }
@@ -48,8 +46,7 @@
         show_platform_name: true,
         show_role_labels: true,
         show_export_time: true,
-        include_source_url: false,
-        redaction_enabled: false
+        include_source_url: false
       }
     },
     {
@@ -65,7 +62,6 @@
         show_role_labels: false,
         show_export_time: true,
         include_source_url: false,
-        redaction_enabled: false,
         include_prompt_appendix: true,
         generate_toc: true
       }

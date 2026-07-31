@@ -1125,7 +1125,6 @@
   function getCurrentExportSettingsFromPopup() {
     var themeOption = document.querySelector(".theme-option.active");
     return {
-      redaction_enabled: false,
       show_conversation_title: document.getElementById("toggle-title") ? document.getElementById("toggle-title").checked : true,
       show_export_time: document.getElementById("toggle-time") ? document.getElementById("toggle-time").checked : true,
       export_ai_replies_only: document.getElementById("toggle-ai-only") ? document.getElementById("toggle-ai-only").checked : false,
@@ -1935,7 +1934,6 @@
     var style = themeOption ? themeOption.getAttribute("data-theme") : "default";
 
     var nextSettings = {
-      redaction_enabled: false,
       show_conversation_title: document.getElementById("toggle-title").checked,
       show_export_time: document.getElementById("toggle-time").checked,
       export_ai_replies_only: document.getElementById("toggle-ai-only").checked,
@@ -2724,7 +2722,6 @@
 
     const themeOption = document.querySelector(".theme-option.active");
     const currentSettings = {
-      redaction_enabled: false,
       show_conversation_title: document.getElementById("toggle-title") ? document.getElementById("toggle-title").checked : true,
       show_export_time: document.getElementById("toggle-time") ? document.getElementById("toggle-time").checked : true,
       export_ai_replies_only: document.getElementById("toggle-ai-only") ? document.getElementById("toggle-ai-only").checked : false,

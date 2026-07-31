@@ -13,7 +13,6 @@
   const usageStore = globalThis.CHATVAULT_USAGE_STORE;
   const privacyProof = globalThis.CHATVAULT_PRIVACY_PROOF;
   const exportHealth = globalThis.CHATVAULT_EXPORT_HEALTH;
-  const redaction = globalThis.CHATVAULT_REDACTION;
   const templatePresets = globalThis.CHATVAULT_TEMPLATE_PRESETS;
   const developerExport = globalThis.CHATVAULT_DEVELOPER_EXPORT;
   const shareCards = globalThis.CHATVAULT_SHARE_CARDS;
@@ -273,21 +272,15 @@
     include_source_url: false,
     align_user_messages_right: true,
     export_style: "default",
-    redaction_enabled: false,
     include_prompt_appendix: false,
     generate_toc: false
   };
 
   function sanitizeExportSettings(settings) {
     const next = settings && typeof settings === "object" ? settings : {};
-    // redaction_enabled 由导出流程按权限校验后决定是否应用，这里不强制定 false
     // include_prompt_appendix 仍强制 false：sourcePrompt 脱敏链路在 template-presets 内未完整，
     // 为安全兜底，禁止导出用户原始 Prompt 作为附录
     next.include_prompt_appendix = false;
-    // 类型校验：避免恶意 storage 注入非布尔值
-    if (typeof next.redaction_enabled !== "boolean") {
-      next.redaction_enabled = false;
-    }
     return next;
   }
 
@@ -3955,8 +3948,7 @@
     const platform = getChatPlatform(item) || getCurrentPlatformId();
     const mode = settings.export_ai_replies_only ? "ai_only" : "conversation";
     const transformed = templatePresets.transformMessages(messages, mode, settings);
-    let processedMessages = transformed;
-    let redactionSummary = { enabled: false, totalMatches: 0, byType: {} };
+    const processedMessages = transformed;
 
     const sourceUrl = sanitizeSourceUrl(item.url || getBatchPlatformChatUrl(platform, getChatConversationId(item)));
     const privacyProofResult = privacyProof.generateProof({
@@ -3971,34 +3963,12 @@
       }
     });
 
-    // 本地敏感信息脱敏（按 Technical_Design 9.10 顺序：transform → privacy proof → redaction → build）
-    // 与单条导出路径保持一致：仅在 redaction 模块可用且用户开启 redaction_enabled 时执行，
-    // 失败时降级为不脱敏，不阻断批量导出。
-    if (redaction && typeof redaction.redactMessages === "function" && settings.redaction_enabled) {
-      try {
-        const redactionResult = redaction.redactMessages(transformed, {
-          redaction_enabled: true,
-          redactCodeBlocks: settings.redact_code_blocks !== false,
-          customRules: isProUser && Array.isArray(settings.custom_redaction_rules)
-            ? settings.custom_redaction_rules
-            : null
-        });
-        if (redactionResult && Array.isArray(redactionResult.messages)) {
-          processedMessages = redactionResult.messages;
-          redactionSummary = redactionResult.summary || redactionSummary;
-        }
-      } catch (redactionError) {
-        console.warn("Redaction failed; exporting without redaction.", redactionError);
-      }
-    }
-
     const codeIndex = developerExport.extractCodeBlocks(processedMessages);
     const metadata = {
       platform,
       title: item.title || "Gemini Export",
       sourceUrl,
       messageCount: processedMessages.length,
-      redaction: redactionSummary,
       codeIndex,
       privacyProof: privacyProofResult
     };
@@ -4656,7 +4626,6 @@
       const alignRight = shadowRoot.getElementById("cv-toggle-align-right").checked;
 
       const currentSettings = {
-        redaction_enabled: false,
         show_conversation_title: showTitle,
         export_ai_replies_only: aiOnly,
         include_prompt_appendix: false,
@@ -6163,45 +6132,20 @@
         }
       });
 
-      // 2.7 本地敏感信息脱敏（按 Technical_Design 9.10 顺序：transform → health check → privacy proof → redaction → build）
-      // 安全要求：
-      // - 仅作用于 transform 之后的 cloned messages，不修改原始 messages
-      // - summary 不包含匹配到的原文
-      // - 全部检测在本地完成，不上传
-      // - redaction_enabled 由用户设置控制，但模块缺失或异常时降级为不脱敏（不阻断导出）
-      let redactionSummary = { enabled: false, totalMatches: 0, byType: {} };
-      let processedMessages = transformed;
-      if (redaction && typeof redaction.redactMessages === "function" && settingsForExport.redaction_enabled) {
-        try {
-          const redactionResult = redaction.redactMessages(transformed, {
-            redaction_enabled: true,
-            redactCodeBlocks: settingsForExport.redact_code_blocks !== false,
-            customRules: isProUser && Array.isArray(settingsForExport.custom_redaction_rules)
-              ? settingsForExport.custom_redaction_rules
-              : null
-          });
-          if (redactionResult && Array.isArray(redactionResult.messages)) {
-            processedMessages = redactionResult.messages;
-            redactionSummary = redactionResult.summary || redactionSummary;
-          }
-        } catch (redactionError) {
-          // 脱敏失败不应阻断导出，但需记录警告
-          console.warn("Redaction failed; exporting without redaction.", redactionError);
-        }
-      }
+      // 2.7 transform 后的 processedMessages 直接用于构建导出
+      const processedMessages = transformed;
       exportStatsForProgress = getExportProgressStats(processedMessages);
       const selectedMessagesForBlob = mode === "selected" ? processedMessages : undefined;
 
       // 3. 提取开发代码块索引 (若有)
       const codeIndex = developerExport.extractCodeBlocks(processedMessages);
-      
+
       // 5. 编译元数据
       const metadata = {
         platform: exporter.detectPlatform(),
         title: exporter.getConversationTitle(),
         sourceUrl: sanitizeSourceUrl(window.location.href),
         messageCount: processedMessages.length,
-        redaction: redactionSummary,
         codeIndex,
         privacyProof: privacyProofResult
       };
@@ -6346,7 +6290,6 @@
           format: formatForExport,
           mode,
           messageCount: metadata.messageCount,
-          redaction: redactionSummary,
           filename: saveResult.filename || blobResult.filename
         });
         lastReceipt = receipt;
