@@ -20,22 +20,18 @@ Before submitting to Chrome Web Store:
 
 ## OAuth Redirects
 
-The extension manifest includes a fixed public `key` so local unpacked builds keep a stable Chrome extension ID:
+The extension manifest includes the Chrome Web Store public `key`, so local unpacked builds use the same ID as the published extension:
 
-`cjkfchfnmbhcpmbhobdanongbjkcbagj`
+`ifdafelpkhoonjidagdonajkboaaamke`
 
 The Chrome Web Store upload package must not include `key`; `npm run package` strips it from `dist/extension/manifest.json` while keeping the source manifest stable for local OAuth testing.
 
 Register this exact Google OAuth redirect URI on the Google OAuth client configured in `src/supabase-config.js`:
 
-`https://bhfclokpfejlpnhimafhenlholhapmmm.chromiumapp.org/`
+`https://ifdafelpkhoonjidagdonajkboaaamke.chromiumapp.org/`
 
 Current Google OAuth client ID:
 
 `374182699502-jun74j44ngfb2ism80u0u39g90ogva6n.apps.googleusercontent.com`
-
-For production, also register the Chrome Web Store extension ID redirect URI on that same Google OAuth client:
-
-`https://<chrome-web-store-extension-id>.chromiumapp.org/`
 
 Do not reuse competitor or placeholder Chrome Web Store IDs in OAuth configuration.

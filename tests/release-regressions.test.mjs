@@ -138,6 +138,22 @@ test("disabled analytics implementation and callers are fully removed", () => {
   assert.doesNotMatch(backgroundSource, /CHATVAULT_ANALYTICS/);
 });
 
+test("Obsidian settings and background keep the stable ChatVault key in sync", () => {
+  const backgroundSource = readText("../src/obsidian-background.js");
+  const settingsHtml = readText("../src/obsidian-settings.html");
+  const settingsSource = readText("../src/obsidian-settings.js");
+
+  assert.match(backgroundSource, /const CONFIG_KEY = "chatvault_obsidian_config_v1"/);
+  assert.match(backgroundSource, /const PRODUCT_CONFIG_KEY = storageKey\("obsidian_config\.v1"\)/);
+  assert.match(backgroundSource, /async function getObsidianConfig\(\)/);
+  assert.match(settingsHtml, /<script src="product-config\.js"><\/script>/);
+  assert.match(settingsSource, /const CONFIG_KEY = "chatvault_obsidian_config_v1"/);
+  assert.match(settingsSource, /const PRODUCT_CONFIG_KEY = storageKey\("obsidian_config\.v1"\)/);
+  assert.match(settingsSource, /\[CONFIG_KEY\]: savedConfig/);
+  assert.match(settingsSource, /\[PRODUCT_CONFIG_KEY\]: savedConfig/);
+  assert.match(settingsSource, /let directoryPickerInFlight = false/);
+});
+
 test("background hardening keeps OAuth errors observable and host fallback product-scoped", () => {
   const backgroundSource = readText("../src/background.js");
   const manifest = readJson("../manifest.json");
