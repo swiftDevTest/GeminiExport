@@ -98,9 +98,12 @@ test("batch result rows use per-file save outcomes", () => {
     /const batchResultItems = \[[\s\S]*?\n\s*\];/
   )?.[0] || "";
 
-  assert.match(resultBlock, /saveResult\.items/);
-  assert.match(resultBlock, /preparationFailures/);
-  assert.doesNotMatch(resultBlock, /preparedFiles\.map/);
+  assert.match(resultBlock, /preparedFiles\.map/);
+  assert.match(contentSource, /saveBatchPreparedFiles\(\[preparedFile\]/);
+  assert.ok(
+    contentSource.indexOf("saveBatchPreparedFiles([preparedFile]") < contentSource.indexOf("preparedFiles.push(preparedFile)"),
+    "only a successfully saved file may be recorded in the result"
+  );
   assert.match(contentSource, /status: "saved"/);
   assert.match(contentSource, /status: "failed"/);
 });

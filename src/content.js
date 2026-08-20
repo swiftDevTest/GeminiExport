@@ -4150,6 +4150,44 @@
     });
   }
 
+  const BATCH_LOCAL_FETCH_CONCURRENCY = 2;
+
+  // Keep a small ordered network prefetch window while all expensive
+  // PDF/image rendering remains serial. Advancing only when get() consumes a
+  // slot bounds retained conversation payloads for long batches.
+  function createOrderedBatchPrefetch(items, worker, concurrency, signal) {
+    const source = Array.isArray(items) ? items : [];
+    const slots = source.map(() => null);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(Number(concurrency) || 1, source.length || 1));
+
+    function startNext() {
+      if (nextIndex >= source.length) return;
+      const index = nextIndex++;
+      slots[index] = Promise.resolve().then(async () => {
+        if (signal.aborted) {
+          const abortError = new Error("Export cancelled.");
+          abortError.name = "AbortError";
+          throw abortError;
+        }
+        return worker(source[index], index);
+      }).then(
+        (value) => ({ value }),
+        (error) => ({ error })
+      );
+    }
+
+    for (let index = 0; index < workerCount; index += 1) startNext();
+    return {
+      async get(index) {
+        while (nextIndex <= index) startNext();
+        const result = await slots[index];
+        startNext();
+        return result;
+      }
+    };
+  }
+
   async function runInPageBatchExport(selectedItems, format, settings) {
     const controller = new AbortController();
     batchExportAbortController = controller;
@@ -4160,6 +4198,20 @@
     const preparedFiles = [];
     const usedPaths = new Set();
     const failures = [];
+    let savedCount = 0;
+    let batchPrefetch = null;
+    let usageSettlementStarted = false;
+
+    async function settleSavedExportUsage() {
+      if (usageSettlementStarted || isProUser || savedCount <= 0) return;
+      usageSettlementStarted = true;
+      const consumeResult = await syncVerifiedExportEntitlement(savedCount, { consume: true });
+      if (!consumeResult || !consumeResult.allowed) {
+        console.warn("Batch export server consume failed:", consumeResult && consumeResult.error);
+      }
+      await recordSuccessfulExportUsage(savedCount, { serverConsumed: Boolean(consumeResult?.serverConsumed) });
+      updateUIState();
+    }
 
     try {
       await loadState({ localOnly: true, skipVerify: true });
@@ -4175,6 +4227,22 @@
         ));
       }
 
+      let sharedPageMessages = null;
+      try {
+        const currentItem = selectedItems.find((item) => isCurrentConversation(item));
+        if (currentItem) sharedPageMessages = parseCurrentChatMessages();
+      } catch (error) {}
+
+      batchPrefetch = createOrderedBatchPrefetch(
+        selectedItems,
+        (item) => fetchConversationMessagesForExport(item, {
+          pageMessages: isCurrentConversation(item) ? sharedPageMessages : undefined,
+          signal
+        }),
+        BATCH_LOCAL_FETCH_CONCURRENCY,
+        signal
+      );
+
       for (let index = 0; index < selectedItems.length; index += 1) {
         if (signal.aborted) throw new Error("Export cancelled.");
         const item = selectedItems[index];
@@ -4188,7 +4256,9 @@
         });
 
         try {
-          const messages = await fetchConversationMessagesForExport(item);
+          const prefetched = await batchPrefetch.get(index);
+          if (prefetched.error) throw prefetched.error;
+          const messages = prefetched.value || [];
           if (signal.aborted) throw new Error("Export cancelled.");
           if (!messages.length) {
             throw new Error(tx("content_no_messages_for_batch_item", "No exportable messages found.", "未找到可导出的消息。"));
@@ -4208,12 +4278,23 @@
             throw new Error(blobResult?.error || "Export failed.");
           }
 
-          preparedFiles.push({
+          const preparedFile = {
             title: item.title || "",
             filename: blobResult.filename,
             blob: blobResult.blob,
             downloadPath: getAvailableBatchDownloadPath(usedPaths, rootName, blobResult.filename)
-          });
+          };
+          const itemSaveResult = await saveBatchPreparedFiles([preparedFile], rootName, signal);
+          if (!itemSaveResult || !itemSaveResult.ok) {
+            if (itemSaveResult?.cancelled) {
+              const saveAbort = new Error("Export cancelled.");
+              saveAbort.name = "AbortError";
+              throw saveAbort;
+            }
+            throw new Error(itemSaveResult?.error || "Export save failed.");
+          }
+          savedCount += Math.max(0, Number(itemSaveResult.savedCount) || 0);
+          preparedFiles.push(preparedFile);
 
           updateBatchExportProgress({
             status: "item_success",
@@ -4221,7 +4302,7 @@
             currentIndex: index,
             total,
             percent: 100,
-            successCount: preparedFiles.length,
+            successCount: savedCount,
             failureCount: failures.length,
             title: item.title || ""
           });
@@ -4239,7 +4320,7 @@
             currentIndex: index,
             total,
             percent: 100,
-            successCount: preparedFiles.length,
+            successCount: savedCount,
             failureCount: failures.length,
             title: item.title || "",
             error: error.message || "Export failed."
@@ -4251,46 +4332,8 @@
         throw new Error(failures[0]?.error || tx("content_batch_no_files", "No conversations were exported.", "没有成功导出的会话。"));
       }
 
-      updateBatchExportProgress({
-        status: "item_progress",
-        currentIndex: Math.max(0, total - 1),
-        index: Math.max(0, total - 1),
-        total,
-        percent: 100,
-        successCount: preparedFiles.length,
-        failureCount: failures.length,
-        progressText: tx("content_batch_saving_zip", "Preparing save file...", "正在准备保存文件...")
-      });
-
-      hideExportProgress();
-      const preparationFailures = failures.slice();
-      const saveResult = await saveBatchPreparedFiles(preparedFiles, rootName, signal);
-      if (!saveResult || !saveResult.ok) {
-        if (saveResult?.cancelled) {
-          showPageToast(tx("content_export_save_cancelled", "Export cancelled.", "导出已取消。"));
-          return;
-        }
-        throw new Error(saveResult?.error || "Export save failed.");
-      }
-      const savedCount = Math.max(0, Number(saveResult.savedCount) || 0);
-      if (Array.isArray(saveResult.failures) && saveResult.failures.length) {
-        saveResult.failures.forEach((failure) => {
-          failures.push({
-            title: failure.filename || "",
-            error: failure.error || "Export save failed."
-          });
-        });
-      }
-
       // 服务器扣减：按实际成功导出数量扣减 Free 用户额度，避免本地计数被绕过
-      if (!isProUser) {
-        const consumeResult = await syncVerifiedExportEntitlement(savedCount, { consume: true });
-        if (!consumeResult || !consumeResult.allowed) {
-          console.warn("Batch export server consume failed:", consumeResult && consumeResult.error);
-        }
-        await recordSuccessfulExportUsage(savedCount, { serverConsumed: Boolean(consumeResult?.serverConsumed) });
-        updateUIState();
-      }
+      await settleSavedExportUsage();
 
       if (failures.length) {
         showPageToast(tx("content_batch_partial_failure", "Some chats failed to export: $1", "部分会话导出失败：$1", failures.length));
@@ -4298,8 +4341,12 @@
       // 统一导出完成 UI：批量本地导出展示结果对话框（与批量同步、单次导出风格一致）
       const batchResultStatus = failures.length > 0 && savedCount > 0 ? "partial" : (savedCount > 0 ? "succeeded" : "failed");
       const batchResultItems = [
-        ...(Array.isArray(saveResult.items) ? saveResult.items : []),
-        ...preparationFailures.map((failure) => ({
+        ...preparedFiles.map((file) => ({
+          title: file.title || file.filename,
+          filename: file.filename || "",
+          status: "saved"
+        })),
+        ...failures.map((failure) => ({
           title: failure.title || failure.filename || "",
           status: "failed"
         }))
@@ -4312,6 +4359,13 @@
         items: batchResultItems
       });
     } catch (error) {
+      if (savedCount > 0 && !usageSettlementStarted) {
+        try {
+          await settleSavedExportUsage();
+        } catch (usageError) {
+          console.warn("Could not settle usage for saved batch files:", usageError);
+        }
+      }
       if (error?.message === "Export cancelled." || error?.name === "AbortError") {
         showPageToast(t("batch_export_cancelled", isChineseUi() ? "导出已取消。" : "Export cancelled."));
       } else {
@@ -4385,7 +4439,8 @@
           const messages = await fetchConversationMessagesForExport(item, {
             pageMessages,
             preserveHtmlPresentation: true,
-            preserveMarkdownSemantics: true
+            preserveMarkdownSemantics: true,
+            signal
           });
           if (!messages.length) {
             throw new Error(tx("content_no_messages_for_batch_item", "No exportable messages found.", "未找到可导出的消息。"));
@@ -4565,20 +4620,11 @@
         try {
           const pageMessages = isCurrentConversation(item) ? parseCurrentChatMessages() : undefined;
           const captureWarnings = [];
-          let messages;
-          try {
-            messages = await fetchConversationMessagesForExport(item, {
-              pageMessages,
-              preserveMarkdownSemantics: true
-            });
-          } catch (error) {
-            if (!pageMessages?.length) throw error;
-            messages = pageMessages;
-            captureWarnings.push({
-              code: "conversation_fetch_partial",
-              detail: tx("obsidian_visible_content_fallback", "The complete conversation was unavailable; visible page content was used.", "完整会话获取失败，已使用页面可见内容。")
-            });
-          }
+          const messages = await fetchConversationMessagesForExport(item, {
+            pageMessages,
+            preserveMarkdownSemantics: true,
+            signal
+          });
           if (!messages?.length) throw new Error(tx("content_no_messages_for_batch_item", "No exportable messages found.", "未找到可同步的消息。"));
           if (signal.aborted) throw new DOMException("Sync cancelled.", "AbortError");
 
@@ -5051,7 +5097,9 @@
         ? /\/chat\/([^/?#]+)/
         : platform === "gemini"
           ? /\/(?:app|gem\/[^/?#]+)\/([^/?#]+)/
-          : /^\/c\/([^/?#]+)/;
+          // ChatGPT Custom GPT and some workspace routes use
+          // /g/<gpt-id>/c/<conversation-id>, while ordinary chats use /c/<id>.
+          : /(?:^|\/)c\/([^/?#]+)/;
       const match = url.pathname.match(pathPattern);
       return match && match[1] ? decodeURIComponent(match[1]) : "";
     } catch (error) {
@@ -5143,6 +5191,54 @@
     return exportPlatformFetchers;
   }
 
+  function createFullConversationUnavailableError(error, platform) {
+    if (error?.code === "FULL_CONVERSATION_UNAVAILABLE") return error;
+    const label = getPlatformLabel(platform || getCurrentPlatformId());
+    const reason = String(error?.message || "");
+    let message = formatDefaultText(
+      isChineseUi()
+        ? "无法确认完整会话，为避免生成内容不全的文件，Gemini Export 已停止导出。请刷新 $1 后重试。"
+        : "The complete conversation could not be verified, so Gemini Export stopped the export to prevent an incomplete file. Refresh $1 and try again.",
+      [label]
+    );
+    if (/too much data|too large|exceeds/i.test(reason)) {
+      message = isChineseUi()
+        ? "该会话数据量过大，浏览器中无法安全确认完整性。Gemini Export 已停止导出，不会生成残缺文件。"
+        : "This conversation is too large to verify safely in the browser. Gemini Export stopped instead of creating a partial file.";
+    } else if (/timed out|timeout/i.test(reason)) {
+      message = formatDefaultText(
+        isChineseUi()
+          ? "加载完整会话超时。Gemini Export 已停止导出，不会生成残缺文件。请刷新 $1 后重试。"
+          : "Loading the complete conversation timed out. Gemini Export stopped instead of creating a partial file. Refresh $1 and try again.",
+        [label]
+      );
+    } else if (/Conversation ID is missing|identify the conversation/i.test(reason)) {
+      message = isChineseUi()
+        ? "Gemini Export 无法从当前网址识别会话。请打开会话本身（不要使用分享预览页）后重试。"
+        : "Gemini Export could not identify this conversation from its URL. Open the conversation itself (not a shared preview) and try again.";
+    }
+    const completeError = new Error(message);
+    completeError.name = "FullConversationUnavailableError";
+    completeError.code = "FULL_CONVERSATION_UNAVAILABLE";
+    completeError.cause = error;
+    completeError.originalMessage = reason;
+    return completeError;
+  }
+
+  function getBlockingConversationRiskReasons(risk, platform) {
+    const reasons = Array.isArray(risk?.reasons) ? risk.reasons.filter(Boolean) : [];
+    if (platform !== "chatgpt") return reasons;
+
+    // A structurally complete ChatGPT path may legitimately contain one
+    // unanswered user turn (or an assistant-only greeting). Missing-role
+    // signals are therefore advisory by themselves. They remain blocking
+    // when any substantive parser/count signal says content may be missing.
+    const substantiveReasons = reasons.filter((reason) => (
+      reason !== "missing_user_role" && reason !== "missing_assistant_role"
+    ));
+    return substantiveReasons.length > 0 ? reasons : [];
+  }
+
   async function fetchConversationMessagesForExport(chat, options = {}) {
     const platform = getChatPlatform(chat);
     const pageMessages = getCurrentPageMessagesForChat(chat, options.pageMessages);
@@ -5155,40 +5251,89 @@
       } else if (platform === "claude") {
         messages = await fetchers.fetchClaudeConversationMessages(chat);
       } else {
-        messages = await fetchers.fetchChatGptConversationMessages(chat, { pageMessages });
+        messages = await fetchers.fetchChatGptConversationMessages(chat, {
+          pageMessages,
+          signal: options.signal
+        });
       }
 
       if (Array.isArray(messages) && messages.length > 0) {
-        if (platform === "chatgpt" && pageMessages.length > 0 && typeof fetchers.mergeChatGptExportMessages === "function") {
-          messages = fetchers.mergeChatGptExportMessages(messages, pageMessages);
+        // Validate the authoritative response before any renderer sees it.
+        // Unknown visible content, missing roles, many empty turns, or a large
+        // API/DOM count mismatch must stop a full export instead of silently
+        // replacing it with a potentially virtualized page snapshot.
+        var candidateCount = 0;
+        if (isCurrentConversation(chat) && typeof exporter.getParseStats === "function") {
+          try {
+            candidateCount = Number(exporter.getParseStats().candidateTurnCount) || 0;
+          } catch (error) {}
         }
-        if ((options.preserveHtmlPresentation || options.preserveMarkdownSemantics) && pageMessages.length > 0 && typeof fetchers.mergePageHtmlPresentation === "function") {
+        var risk = typeof fetchers.detectApiCompletenessRisk === "function"
+          ? fetchers.detectApiCompletenessRisk(messages, { candidateCount: candidateCount })
+          : { needsFallback: false, reasons: [], unknownTypes: [] };
+        var blockingRiskReasons = getBlockingConversationRiskReasons(risk, platform);
+
+        if (blockingRiskReasons.length > 0) {
+          const riskError = new Error("Conversation completeness check failed: " + blockingRiskReasons.join(", "));
+          riskError.code = "CONVERSATION_COMPLETENESS_RISK";
+          throw riskError;
+        }
+
+        var needsPresentationMerge = (options.preserveHtmlPresentation || options.preserveMarkdownSemantics) && pageMessages.length > 0;
+
+        let alreadyCloned = false;
+        // The API path remains authoritative for full-conversation content.
+        // The live page may overlay presentation, but it must never replace a
+        // failed completeness check with a potentially virtualized snapshot.
+        if (platform === "chatgpt" && needsPresentationMerge && typeof fetchers.mergeChatGptExportMessages === "function") {
+          messages = fetchers.mergeChatGptExportMessages(messages, pageMessages);
+          alreadyCloned = true;
+        }
+        // Gemini RPC responses use numbered image placeholders whose raw
+        // metadata may also contain earlier uploaded/context images. For the
+        // current conversation, reconcile equal-sized image sets with the live
+        // DOM blobs before every export format consumes the shared message
+        // model. Text and off-screen/virtualized messages remain API-owned.
+        if (platform === "gemini" && pageMessages.length > 0 && typeof fetchers.mergeGeminiExportMessages === "function") {
+          messages = fetchers.mergeGeminiExportMessages(messages, pageMessages);
+          alreadyCloned = true;
+        }
+        if (needsPresentationMerge && typeof fetchers.mergePageHtmlPresentation === "function") {
           return fetchers.mergePageHtmlPresentation(messages, pageMessages, {
             includeHtmlStyles: options.preserveHtmlPresentation === true
           });
         }
-        return cloneExportMessages(messages);
+        // 优化：merge 路径已克隆，跳过冗余的 JSON 深拷贝（省一次大对象序列化）。
+        // gemini/claude 路径的 messages 来自 API JSON 解析，本身就是纯数据无 DOM 引用，
+        // 但保留克隆作为防御层以防上游变更；仅在已克隆分支跳过。
+        return alreadyCloned ? messages : cloneExportMessages(messages);
       }
-      if (pageMessages.length > 0) {
-        return pageMessages;
-      }
-      return [];
+      throw new Error("The platform returned no complete conversation messages.");
     } catch (error) {
-      if (pageMessages.length > 0) {
-        console.warn("Full conversation fetch failed, falling back to current page messages:", error);
+      if (options.signal?.aborted || error?.name === "AbortError") {
+        throw error;
+      }
+      if (options.allowPageFallback === true && pageMessages.length > 0) {
+        console.warn("Full conversation fetch failed; explicit visible-page fallback was requested:", error);
         return pageMessages;
       }
-      throw error;
+      throw createFullConversationUnavailableError(error, platform);
     }
   }
 
   async function getCurrentConversationMessagesForExport(pageMessages, options = {}) {
     const chat = getCurrentConversationForExport();
-    if (!chat) return pageMessages;
+    if (!chat) {
+      throw createFullConversationUnavailableError(
+        new Error("Conversation ID is missing for export."),
+        getCurrentPlatformId()
+      );
+    }
     return fetchConversationMessagesForExport(chat, {
       pageMessages,
       preserveHtmlPresentation: options.preserveHtmlPresentation === true,
-      preserveMarkdownSemantics: options.preserveMarkdownSemantics === true
+      preserveMarkdownSemantics: options.preserveMarkdownSemantics === true,
+      signal: options.signal
     });
   }
 
@@ -5250,13 +5395,23 @@
     let savedCount = 0;
     for (const file of preparedFiles) {
       if (signal && signal.aborted) {
+        file.blob = null;
         return { ok: false, cancelled: true, error: "Export cancelled." };
       }
-      const result = await exporter.saveBlob(file.blob, file.downloadPath, { saveAs: false });
-      // 保存后立即释放 Blob 引用，降低批量导出内存峰值
-      file.blob = null;
-      if (!result.ok) {
-        failures.push({ filename: file.filename, error: result.error });
+      let result;
+      try {
+        result = await exporter.saveBlob(file.blob, file.downloadPath, { saveAs: false });
+      } catch (error) {
+        result = { ok: false, error: error?.message || "Export save failed." };
+      } finally {
+        // 保存成功、取消或异常时都立即释放 Blob 引用。
+        file.blob = null;
+      }
+      if (!result?.ok) {
+        if (result?.cancelled) {
+          return { ok: false, cancelled: true, error: result?.error || "Export cancelled.", savedCount, items };
+        }
+        failures.push({ filename: file.filename, error: result?.error || "Export save failed." });
         items.push({
           title: file.title || file.filename,
           filename: file.filename,
@@ -6160,24 +6315,23 @@
       try {
         rawMessagesForExport = await getCurrentConversationMessagesForExport(pageMessagesForExport, {
           preserveHtmlPresentation: formatForExport === "html",
-          preserveMarkdownSemantics: formatForExport === "markdown"
+          preserveMarkdownSemantics: formatForExport === "markdown",
+          signal
         });
         if (isCurrentExportCancelled()) return;
       } catch (error) {
-        console.warn("Full conversation fetch failed before export, using parsed page messages:", error);
-        rawMessagesForExport = pageMessagesForExport;
-      }
-      // API 抓取后仍无消息时，尝试滚动加载并重新解析 DOM（仅单次导出，批量导出已有滚动逻辑）
-      if (!rawMessagesForExport.length && !globalThis.CHATVAULT_IS_BATCH_EXPORT) {
-        try {
-          await scrollAndLoadAllMessages();
-          pageMessagesForExport = parseCurrentChatMessages(pageParseOptions);
-          if (pageMessagesForExport.length > 0) {
-            rawMessagesForExport = pageMessagesForExport;
-          }
-        } catch (err) {
-          console.warn("Failed to scroll and reload messages before export:", err);
+        if (signal.aborted || error?.name === "AbortError") {
+          hideExportProgress();
+          clearCurrentExportController();
+          return;
         }
+        console.warn("Full conversation fetch failed; export stopped to prevent an incomplete file:", error);
+        hideExportProgress();
+        clearCurrentExportController();
+        showPageToast(error?.message || (isChineseUi()
+          ? "无法确认完整会话，为避免生成内容不全的文件，Gemini Export 已停止导出。"
+          : "The complete conversation could not be verified, so the export was stopped to prevent an incomplete file."));
+        return;
       }
     }
     if (!platformForExport || rawMessagesForExport.length === 0) {
@@ -6595,16 +6749,10 @@
       let messages = pageMessages;
       const captureWarnings = [];
       if (scope === "conversation") {
-        try {
-          messages = await getCurrentConversationMessagesForExport(pageMessages, { preserveMarkdownSemantics: true });
-        } catch (error) {
-          console.warn("Full conversation fetch failed before Obsidian sync, using parsed page messages:", error);
-          messages = pageMessages;
-          captureWarnings.push({
-            code: "conversation_fetch_partial",
-            detail: tx("obsidian_visible_content_fallback", "The complete conversation was unavailable; visible page content was used.", "完整会话获取失败，已使用页面可见内容。")
-          });
-        }
+        messages = await getCurrentConversationMessagesForExport(pageMessages, {
+          preserveMarkdownSemantics: true,
+          signal
+        });
       }
       if (signal.aborted) throw new DOMException("Sync cancelled.", "AbortError");
 
@@ -6955,19 +7103,11 @@
             const notionCaptureWarnings = [];
 
             if (platformForSync && pageMessagesForSync.length > 0) {
-              try {
-                rawMessagesForSync = await getCurrentConversationMessagesForExport(pageMessagesForSync, {
-                  preserveHtmlPresentation: true,
-                  preserveMarkdownSemantics: true
-                });
-              } catch (e) {
-                console.warn("Full conversation fetch failed before sync, using parsed page messages:", e);
-                rawMessagesForSync = pageMessagesForSync;
-                notionCaptureWarnings.push({
-                  code: "conversation_fetch_partial",
-                  detail: "The complete conversation API was unavailable; visible page content was used."
-                });
-              }
+              rawMessagesForSync = await getCurrentConversationMessagesForExport(pageMessagesForSync, {
+                preserveHtmlPresentation: true,
+                preserveMarkdownSemantics: true,
+                signal
+              });
             }
             if (signal.aborted) throw new Error("Sync cancelled.");
 
