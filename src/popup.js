@@ -1204,10 +1204,7 @@
     var title = document.createElement("div");
     title.className = "inline-error-message";
     title.textContent = t("popup_refresh_required_title", "Please refresh the page to activate the extension");
-    var desc = document.createElement("div");
-    desc.className = "inline-helper";
-    desc.textContent = t("popup_refresh_required_desc", "The extension was just loaded or updated. Open AI conversation pages must be refreshed once before popup communication works.");
-    quotaInfo.append(title, desc);
+    quotaInfo.append(title);
   }
 
   function getCurrentExportSettingsFromPopup() {
@@ -1402,8 +1399,6 @@
           type: "CHATVAULT_POPUP_EXPORT",
           format: format,
           settings: currentSettings
-        }, {
-          closeImmediately: true
         });
       });
     });
@@ -1420,7 +1415,6 @@
           copyToClipboard: true,
           settings: getCurrentExportSettingsFromPopup()
         }, {
-          closeImmediately: true,
           onError: function () { copyJsonButton.disabled = false; }
         });
       });
@@ -1700,27 +1694,22 @@
   function sendMessageToActivePage(payload, options) {
     if (!requireSupportedPage()) return;
     options = options || {};
-    // closeImmediately：页面侧导出是长任务（可能持续数秒到数分钟），popup 在消息投递成功后
-    // 立即关闭，避免 popup 长时间挂起阻塞用户操作；页面侧导出在 content script 中继续完成。
-    if (options.closeImmediately) {
-      chrome.tabs.sendMessage(activeTabId, payload, function () {
-        if (chrome.runtime.lastError) {
-          if (typeof options.onError === "function") options.onError(chrome.runtime.lastError);
-          showToast(t("popup_refresh_page_retry", "Please refresh the current AI conversation page and try again."));
-          return;
-        }
-        if (typeof options.onSuccess === "function") {
-          try { options.onSuccess({}); } catch (e) {}
-        }
-      });
-      setTimeout(function () {
-        window.close();
-      }, 0);
-      return;
-    }
+    var settled = false;
+    var timeoutId = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      var timeoutError = new Error(t("popup_operation_failed", "Operation failed. Please try again later."));
+      if (typeof options.onError === "function") options.onError(timeoutError);
+      setRefreshRequired(document.getElementById("quota-status-info"));
+      showToast(t("popup_refresh_page_retry", "Please refresh the current AI conversation page and try again."));
+    }, 8000);
     chrome.tabs.sendMessage(activeTabId, payload, function (response) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       if (chrome.runtime.lastError) {
         if (typeof options.onError === "function") options.onError(chrome.runtime.lastError);
+        setRefreshRequired(document.getElementById("quota-status-info"));
         showToast(t("popup_refresh_page_retry", "Please refresh the current AI conversation page and try again."));
         return;
       }
@@ -2026,10 +2015,8 @@
     chrome.tabs.sendMessage(activeTabId, { type: "CHATVAULT_GET_POPUP_STATE", forceRefresh: !!forceRefresh }, function (response) {
       if (chrome.runtime.lastError || !response || !response.ok) {
         // Page needs refresh or extension context invalidated
-        hydrateCachedEntitlementState().then(function (usedCache) {
-          if (!usedCache) {
-            setRefreshRequired(document.getElementById("quota-status-info"));
-          }
+        hydrateCachedEntitlementState().then(function () {
+          setRefreshRequired(document.getElementById("quota-status-info"));
         });
         return;
       }
