@@ -1296,10 +1296,10 @@
     ensureSubscriptionPanelOpener();
     bindThemeSelection();
 
-    // Notion renders from its safe local UI cache while the connection and
-    // Database list are refreshed silently in the background.
-    await notionInitialization;
-    await obsidianInitialization;
+    // Notion and Obsidian render their cached state synchronously. Keep their
+    // background refresh promises non-blocking so the export buttons and tabs
+    // bind immediately.
+    Promise.allSettled([notionInitialization, obsidianInitialization]).catch(function () {});
 
     // 1. 初始化平台及链接监听
     document.getElementById("btn-open-chatgpt").addEventListener("click", function () {
@@ -2255,6 +2255,15 @@
   };
 
   // 共享更新登录状态与头像 UI 辅助函数
+  function buildAvatarPlaceholder() {
+    var wrap = document.createElement("span");
+    wrap.innerHTML = '<svg class="user-avatar-placeholder" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">' +
+      '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>' +
+      '<circle cx="12" cy="7" r="4"/>' +
+      '</svg>';
+    return wrap.firstChild;
+  }
+
   function updateAuthButton(isLoggedIn, isPro, email, avatarUrl) {
     var loginBtn = document.getElementById("login-btn");
     if (!loginBtn) return;
@@ -2271,16 +2280,18 @@
       var accountLabel = email || (isPro ? t("popup_account", "Account") : t("popup_free_account", "Free Account"));
       loginBtn.setAttribute("title", accountLabel);
       loginBtn.setAttribute("aria-label", accountLabel);
-      var avatarHtml = "";
+      loginBtn.replaceChildren(buildAvatarPlaceholder());
       if (avatarUrl && isSafeAvatarUrl(avatarUrl)) {
-        avatarHtml = '<img src="' + escapeAttribute(avatarUrl) + '" class="user-avatar" referrerpolicy="no-referrer" alt="Avatar">';
-      } else {
-        avatarHtml = '<svg class="user-avatar-placeholder" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">' +
-          '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>' +
-          '<circle cx="12" cy="7" r="4"/>' +
-          '</svg>';
+        var avatarImg = document.createElement("img");
+        avatarImg.src = avatarUrl;
+        avatarImg.className = "user-avatar";
+        avatarImg.referrerPolicy = "no-referrer";
+        avatarImg.alt = "Avatar";
+        avatarImg.addEventListener("error", function () {
+          loginBtn.replaceChildren(buildAvatarPlaceholder());
+        });
+        loginBtn.replaceChildren(avatarImg);
       }
-      loginBtn.innerHTML = avatarHtml;
     } else {
       loginBtn.removeAttribute("title");
       loginBtn.setAttribute("aria-label", t("popup_btn_login", "Sign In"));

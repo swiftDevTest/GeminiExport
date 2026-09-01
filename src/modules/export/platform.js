@@ -18,6 +18,7 @@ import {
 } from './utils.js';
 
 import { compareElementsInDocument, pushDistinctDocumentElement } from './platforms/shared.js';
+import { parseGeminiMessages as parseGeminiMessagesFromPlatform } from './platforms/gemini/extractor.js';
 import { parseMessagesForPlatform } from './platforms/registry.js';
 import { createExportDocument, normalizeExportBlocks, validateExportDocument } from './document.js';
 import { captureExportHtmlStyle, sanitizeExportHtmlStyle, withExportHtmlStyleCapture } from './html-style.js';
@@ -140,14 +141,14 @@ function getParseStats() {
 
 function parseChatGPTMessages(options) {
   return withExportHtmlStyleCapture(shouldCaptureHtmlStyles(options), function () {
-    return parseChatGPTMessagesFromPlatform();
+    return parseMessagesForPlatform("chatgpt");
   });
 }
 
 
 function parseClaudeMessages(options) {
   return withExportHtmlStyleCapture(shouldCaptureHtmlStyles(options), function () {
-    return parseClaudeMessagesFromPlatform();
+    return parseMessagesForPlatform("claude");
   });
 }
 
